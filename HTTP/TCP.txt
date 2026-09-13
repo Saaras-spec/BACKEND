@@ -1,0 +1,21 @@
+1. What does "Stateless" mean?
+
+By default, HTTP is a stateless protocol. This means the server has the memory of a goldfish.
+
+Every single request the client sends is treated as a completely new, independent transaction. The server does not remember anything about the previous requests.
+
+Analogy: Imagine going to a vending machine. You put in your money and press "A1" for chips. The machine gives you chips. A minute later, you walk back up and press "A2" for a soda. The machine doesn't know you are the same person who just bought chips. It just processes the new request exactly as it processed the first one. It is stateless.
+
+1.SYN (Synchronize):Client says hello.The Client sends a message to the Server saying, "Hey, I want to talk to you. Are you open for a connection?"
+2.SYN-ACK (Synchronize-Acknowledge):Server responds.The Server receives the message and replies, "Yes, I am here and open. I acknowledge your request. Can you hear me?"
+
+Once this handshake is complete, a secure "pipe" is open between the client and the server. If any data packets get lost while traveling through this pipe, TCP automatically asks the sender to re-transmit them. It is built for reliability.
+
+2. HTTP: The Conversation (HyperText Transfer Protocol)
+
+Once TCP has established the connection, HTTP steps in. HTTP is simply the set of rules (the protocol) that dictates how the client should ask for data and how the server should format its reply.
+
+
+The Request: The client sends an HTTP message through the TCP connection. It looks something like: "GET me the webpage at /home".
+
+The Response: The server reads the HTTP request, grabs the necessary HTML/data, and sends it back with a status code: "200 OK. Here is the HTML code for the home page."
