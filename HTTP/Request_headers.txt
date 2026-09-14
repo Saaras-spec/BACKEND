@@ -1,0 +1,37 @@
+1. User-Agent (The ID Badge)
+
+When your client makes a request, the server wants to know: "Are you a mobile phone, a desktop browser, or a script written by a hacker?" The User-Agent header tells the server exactly what software and operating system the client is using.
+
+    Example: User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36
+
+    Why it matters for backend:
+
+        Analytics: To know if most of your users are on Mac or Windows.
+
+        Formatting: If the server sees a mobile browser in the User-Agent, it might choose to send back a lighter, mobile-optimized HTML page.
+
+        Security: If your backend gets 10,000 requests a second from a User-Agent that says "Python-urllib/3.8", you know a bot is scraping your API, and you can block it.
+
+2. Authorization (The VIP Pass)
+
+As we discussed earlier, HTTP is stateless. The server doesn't remember that you logged in. The Authorization header is how the client passes its VIP ticket (like a JWT) to the server on every single request.
+
+    Example: Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6...
+
+    Why it matters for backend: This is the gatekeeper. Your backend middleware will look at this header before it processes the request. If the token is missing, expired, or tampered with, the backend immediately rejects the request with a 401 Unauthorized status code.
+
+3. Cookie (The Memory Box)
+
+If you are using traditional Session-based authentication (instead of JWTs), or if the site wants to remember your dark-mode preference without you logging in, the browser sends this header. It automatically sends back any cookies the server previously asked it to hold.
+
+    Example: Cookie: session_id=abc123xyz; theme=dark
+
+    Why it matters for backend: The backend parses this header to look up your active session in its database. It brings "memory" to a stateless connection.
+
+4. Accept (The Language Preference)
+
+While Content-Type tells the receiver "Here is what I am sending you," the Accept header tells the server "Here is what I am willing to receive."
+
+    Example: Accept: application/json
+
+    Why it matters for backend: Imagine a backend API that can return data as either JSON or XML. When the client sends Accept: application/json, your backend code reads that header and says, "Okay, I will format the response as JSON." If it can't provide the requested format, it will fail gracefully (often returning a 406 Not Acceptable error)
