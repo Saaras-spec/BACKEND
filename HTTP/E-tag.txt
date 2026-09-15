@@ -1,0 +1,24 @@
+As i previously learned that cache-control: no-cache means that user can save the cache but revalidate but how the user will comunicate with server and how will server will know that,
+here comes E-tag its like a digital fingerprint.
+
+it creates a workflow called conditional request - 
+1. whenever client request some data from server, it sends that json file or file it also sends a hash-code attach with the file that hash-code is E-tag,with 200 ok and then client store that cache file with hash-code.
+
+2.Later the client need that data again it request from the server and sends the hash-code again with header if-none-match : "hashcode" it means that if the hashcode doesnot matches to the server hashcode then give me updated file but if it is same then dont give me that file.
+
+3. then the server calculate that hashcode in its database.
+    A. if it matches then it send 304 not modified with an empty file. -this saves massive amount of bandwith.
+    B. if it does not matches then it send 200 ok  with modified file and new hashcode.
+
+
+Massive Bandwidth Savings: Returning a 304 Not Modified takes only a few bytes (just the headers). Returning a massive 5MB JSON payload takes significantly more time and server money.
+
+Preventing Mid-Air Collisions (Optimistic Concurrency): ETags aren't just for caching; they are used for safe updates.
+
+    Imagine two admins try to edit the same product page at the exact same time.
+
+    Admin A sends a PUT request to update the price, attaching If-Match: "version-1".
+
+    If Admin B already updated it a second earlier (changing the server's ETag to "version-2"), Admin A's request will fail with a 412 Precondition Failed error. This prevents Admin A from accidentally overwriting Admin B's work!
+
+    
