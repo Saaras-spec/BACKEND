@@ -1,0 +1,19 @@
+it works on the Payload like the data which is being actually sended through http server, both client and user can send data to each other so it can be used by both.
+
+1. Content- type : It tells the receiver how to interpret the raw bytes in the body. The value is always formatted as a MIME(Multipropose internet mail extensions) type (a standardized way to label files on the internet).
+
+                    Examples: Content-Type: application/json, Content-Type: text/html, Content-Type: image/jpeg
+
+
+2. Content- Length : it tells the receiver what is the length(in bytes) of the data which is being sent. 
+                    if browser says connection keep alive i will be sending the next file so how would the server knows whether how much it has to read so content lenght,
+                    tells the server that this much file size is of 1st file so read that much only after this size that will be the second file.
+
+
+3. Content - Encoding :  sending large data payload like json and html file over the internet cost time and money,so thats why senders compress the file so that it is easier to send it and takes less time.
+                        
+    how it works:  client always send this header Accept-Encoding : gzip,br.. , it tells the server that client can decompress this file and all, so if the file size is to large then server sends this compressed file,
+                    with Content-Encoding : gzip.
+
+                    but if the client want to send the data to the server then it just send it and write content-Encoding:gzip thats it.
+                    
