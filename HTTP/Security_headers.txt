@@ -1,0 +1,45 @@
+When you build an API, you have to assume that people will try to hack it.
+ Security Headers are rules that your backend sends to the user's browser, essentially saying:
+  "Here is my data, and here are the strict rules for how you are allowed to display and interact with it."
+
+1. HSTS(Strict-Transport Security)
+The Problem: An attacker intercepts the Wi-Fi at a coffee shop and downgrades a user's connection from secure HTTPS to unencrypted HTTP, allowing them to steal passwords.
+The Solution (HSTS):
+This header tells the browser: "For the next year, if the user ever types [http://mysite.com](http://mysite.com), do not even try it. Automatically upgrade it to https:// internally before sending the request over the network."
+
+    Example: Strict-Transport-Security: max-age=31536000; includeSubDomains
+
+2. CSP(Content -Security-Policy)
+The Problem: Cross-Site Scripting (XSS). A hacker injects a malicious JavaScript tag into a comment on your blog. When other users read the comment, their browser executes the script and steals their session tokens.
+The Solution (CSP):
+This is the bouncer at the club. It gives the browser a strict VIP list of exactly which domains are allowed to run scripts, load images, or fetch data on the page. If a script tries to run from an unknown source (or inline), the browser blocks it.
+
+    Example: Content-Security-Policy: default-src 'self'; script-src 'self' [https://trusted-cdn.com](https://trusted-cdn.com)
+
+    (Translation: Only allow resources from my own domain, except for scripts, which can also come from trusted-cdn.com).
+
+
+3. X-frame options
+
+The Problem: Clickjacking. An attacker creates a fake website with a giant button saying "Win an iPhone!" But, they secretly load your banking website in a transparent, invisible <iframe> layered exactly on top of their button. When the user clicks to win, they accidentally click the "Transfer Funds" button on your hidden site.
+The Solution (X-Frame-Options):
+Tells the browser whether or not your site is allowed to be embedded inside an <iframe> on another website.
+
+    Example: X-Frame-Options: DENY (Nobody can iframe me) or X-Frame-Options: SAMEORIGIN (Only pages on my own domain can iframe me).
+
+
+4. X-Content-Type-Options
+
+The Problem: MIME-Sniffing. Browsers sometimes try to be "helpful" by guessing what a file is, ignoring the Content-Type header. A hacker uploads a malicious executable file but names it cute-cat.jpg. If the browser "sniffs" it and executes it as code instead of rendering it as an image, you are compromised.
+The Solution (X-Content-Type-Options):
+Forces the browser to strictly follow the Content-Type header you provided and disables the "helpful" sniffing feature.
+
+    Example: X-Content-Type-Options: nosniff
+
+
+5. Set-Cookie (The Security Flags)
+
+We talked about Set-Cookie earlier, but from a security standpoint, the cookie value itself isn't what matters—it's the flags you attach to it.
+
+
+If you are using Session Cookies for authentication, you must append these flags:FlagWhat it doesWhy it prevents hacksHttpOnlyHides the cookie from JavaScript.Even if an attacker executes an XSS script on your page, document.cookie will come up empty. They cannot steal the session ID.SecureForces HTTPS only.The browser will refuse to send the cookie over an unencrypted HTTP connection, preventing interception.SameSite=StrictPrevents the cookie from being sent if the request originates from a different website.Prevents CSRF (Cross-Site Request Forgery) attacks, where a hacker tricks a logged-in user into submitting a malicious request.
