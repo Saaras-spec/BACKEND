@@ -1,23 +1,101 @@
-Method	CRUD Action	What it does	Example API Request
-GET	Read	Retrieves data from the server. It should never modify data.	GET /articles/123 (Fetches article 123)
-POST	Create	Sends new data to the server to create a brand new resource.	POST /articles (Creates a new article)
-PUT	Update	Replaces an existing resource entirely with a new payload.	PUT /articles/123 (Replaces article 123 completely)
-PATCH	Update	Modifies only specific fields of an existing resource.	PATCH /articles/123 (Updates just the title of article 123)
-DELETE	Delete	Removes a resource from the server.	DELETE /articles/123 (Deletes article 123)
+HTTP METHODS
+
+Method    CRUD Action    What it does                                      Example API Request
+GET       Read           Retrieves data from the server. It should         GET /articles/123
+                         never modify data.                                 (Fetches article 123)
+
+POST      Create         Sends new data to the server to create            POST /articles
+                         a brand new resource.                             (Creates a new article)
+
+PUT       Update         Replaces an existing resource entirely            PUT /articles/123
+                         with a new payload.                                (Replaces article 123 completely)
+
+PATCH     Update         Modifies only specific fields of an                PATCH /articles/123
+                         existing resource.                                 (Updates just the title of article 123)
+
+DELETE    Delete         Removes a resource from the server.                DELETE /articles/123
+                                                                             (Deletes article 123)
 
 
-An HTTP method is idempotent if making the same request 1 time or 1,000 times results in the exact same state on the server.Idempotent = Multiplying by 1. ($5 \times 1 = 5$. Do it a thousand times, it's still 5).Non-Idempotent = Adding 1. ($5 + 1 = 6$. Do it a thousand times, you get 1005).How it applies to HTTP Methods:GET is Idempotent: If you GET an article 100 times, the article doesn't change. The database state remains identical.DELETE is Idempotent: If you DELETE article 123, it is gone. If you try to DELETE it 99 more times, the end result is exactly the same: article 123 does not exist.PUT is Idempotent: If you send a PUT request saying "Make the title 'Hello'", the title becomes 'Hello'. Send that exact request 100 times, and the title is still just 'Hello'.POST is NOT Idempotent: If you send a POST request to create a new article, the database adds a row and assigns it ID 1. If you accidentally send that exact same request 5 times, you will create 5 identical articles in the database with IDs 1, 2, 3, 4, and 5.
+Idempotency in HTTP
+
+An HTTP method is idempotent if making the same request 1 time or 1,000 times results in the exact
+same state on the server.
+
+• Idempotent = Multiplying by 1. ($5 × 1 = 5. Do it a thousand times, it's still 5).
+• Non-Idempotent = Adding 1. ($5 + 1 = 6. Do it a thousand times, you get 1005).
+
+How it applies to HTTP Methods:
+
+• GET is Idempotent: If you GET an article 100 times, the article doesn't change. The database state
+  remains identical.
+
+• DELETE is Idempotent: If you DELETE article 123, it is gone. If you try to DELETE it 99 more times,
+  the end result is exactly the same: article 123 does not exist.
+
+• PUT is Idempotent: If you send a PUT request saying "Make the title 'Hello'," the title becomes 'Hello'.
+  Send that exact request 100 times, and the title is still just 'Hello'.
+
+• POST is NOT Idempotent: If you send a POST request to create a new article, the database adds a row
+  and assigns it ID 1. If you accidentally send that exact same request 5 times, you will create 5 identical
+  articles in the database with IDs 1, 2, 3, 4, and 5.
 
 
-Imagine you are buying a $50 pair of shoes. You click "Checkout," and your browser sends a POST /payments request to the backend.
-1.The Request arrives safely:The server receives the POST request, talks to the bank, and successfully deducts $50 from your account.
-2.The Server replies:The server creates a 200 OK success message and sends it back over the internet to your phone.
-3.The Network fails:Right as the server replies, you step into an elevator. Your Wi-Fi drops for two seconds. The 200 OK message is lost in transit and never reaches your phone.
-4.The Browser panics and retries:Your browser has been waiting for an answer. Because it never got the 200 OK, it assumes the server never got the original request. To be helpful, the browser automatically retries sending the exact same POST /payments request.
-5.The Double Charge:The server receives this second POST request. Because POST is non-idempotent (meaning it blindly executes the creation logic every time it is called), the server charges your card another $50.
- You just paid $100 for $50 shoes.This happens constantly in the real world. Network requests drop all the time, and mobile apps or browsers are built to automatically retry failed requests.
- 
- The Solution: How Backend Developers Fix ThisSince we cannot stop the internet from glitching, and we cannot stop browsers from retrying requests, 
- we have to make the backend smarter.We solve this using something called an Idempotency Key.
-  We basically force a non-idempotent POST request to act like an idempotent request.
-  Here is how we fix the checkout flow:The Frontend generates a unique ID: When you click "Checkout", the frontend generates a random, unique string (e.g., Payment-Key-98765) and attaches it to the HTTP Request Headers as Idempotency-Key: Payment-Key-98765.The Server checks its memory: When the backend receives the request, the very first thing it does is look in its database and ask: "Have I ever successfully processed Payment-Key-98765 before?"The First Pass (Success): The database says "No." The server charges the $50, and saves Payment-Key-98765: SUCCESS in the database.The Glitch & Retry: The Wi-Fi drops, the browser retries, and sends the exact same request with the exact same Idempotency Key.The Second Pass (The Save): The server gets the second request. It checks the database: "Have I ever processed Payment-Key-98765 before?" The database says "Yes, you already did this!"The Graceful Exit: Instead of charging the card again, the server skips the payment logic completely and just replies: 200 OK - Payment Successful.The user gets their shoes, the server only charges them once, and the network glitch is completely bypassed.
+Real World Example: Double Charge Problem
+
+Imagine you are buying a $50 pair of shoes. You click "Checkout," and your browser sends a POST /payments
+request to the backend.
+
+① The Request arrives safely:
+   The server receives the POST request, talks to the bank, and successfully deducts $50 from your account.
+
+② The Server replies:
+   The server creates a 200 OK success message and sends it back over the internet to your phone.
+
+③ The Network fails:
+   Right as the server replies, you step into an elevator. Your Wi-Fi drops for two seconds. The 200 OK
+   message is lost in transit and never reaches your phone.
+
+④ The Browser panics and retries:
+   Your browser has been waiting for an answer. Because it never got the 200 OK, it assumes the server never
+   got the original request. To be helpful, the browser automatically retries sending the exact same
+   POST /payments request.
+
+⑤ The Double Charge:
+   The server receives this second POST request. Because POST is non-idempotent (meaning it blindly executes
+   the creation logic every time it is called), the server charges your card another $50. You just paid $100
+   for $50 shoes.
+
+This happens constantly in the real world. Network requests drop all the time, and mobile apps or browsers
+are built to automatically retry failed requests.
+
+
+The Solution: How Backend Developers Fix This
+
+Since we cannot stop the internet from glitching, and we cannot stop browsers from retrying requests,
+we have to make the backend smarter.
+
+We solve this using something called an Idempotency Key. We basically force a non-idempotent POST request
+to act like an idempotent request.
+
+Here is how we fix the checkout flow:
+
+① The Frontend generates a unique ID: When you click "Checkout", the frontend generates a random, unique string
+   (e.g., Payment-Key-98765) and attaches it to the HTTP Request Headers as Idempotency-Key: Payment-Key-98765.
+
+② The Server checks its memory: When the backend receives the request, the very first thing it does is look in its
+   database and asks: "Have I ever successfully processed Payment-Key-98765 before?"
+
+③ The First Pass (Success): The database says "No." The server charges the $50, and saves Payment-Key-98765: SUCCESS
+   in the database.
+
+④ The Glitch & Retry: The Wi-Fi drops, the browser retries, and sends the exact same request with the exact same
+   Idempotency Key.
+
+⑤ The Second Pass (The Save): The server gets the second request. It checks the database: "Have I ever processed
+   Payment-Key-98765 before?" The database says "Yes, you already did this!"
+
+⑥ The Graceful Exit: Instead of charging the card again, the server skips the payment logic completely and just replies:
+   200 OK – Payment Successful.
+
+The user gets their shoes, the server only charges them once, and the network glitch is completely bypassed.
