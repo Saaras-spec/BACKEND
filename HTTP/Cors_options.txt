@@ -1,0 +1,139 @@
+THE HTTP OPTIONS METHOD
+
+The OPTIONS method is the HTTP equivalent of calling a restaurant ahead of time and asking, "Do you accept
+credit cards, and what are your opening hours?"
+Unlike GET or POST, the OPTIONS method never asks for actual data (like a user profile) and never modifies
+data (like creating a post). Instead, it asks the server for the rules of engagement regarding a specific URL.
+In backend engineering, OPTIONS is used in two primary ways.
+
+1. The CORS Preflight (The Modern Use Case)
+
+As we just discussed, this is the most common reason you will see OPTIONS requests in your browser’s network tab today.
+When a frontend tries to make a "complex" cross-origin request (like sending a PUT request with a JSON body),
+the browser automatically fires a completely invisible OPTIONS request first to ask for permission.
+
+The Browser’s OPTIONS Request:
+
+HTTP
+OPTIONS /api/users/123 HTTP/1.1
+Origin: https://my-frontend.com
+Access-Control-Request-Method: PUT
+Access-Control-Request-Headers: Content-Type, Authorization
+
+(Translation: "I am a frontend at my-frontend.com. I want to send a
+PUT request to this URL, and I want to attach Content-Type
+and Authorization headers. Are you okay with that?")
+
+The Server’s Reply:
+
+HTTP
+HTTP/1.1 204 No Content
+Access-Control-Allow-Origin: https://my-frontend.com
+Access-Control-Allow-Methods: GET, POST, PUT, DELETE
+Access-Control-Allow-Headers: Content-Type, Authorization
+
+(Translation: "Yes, you are on the VIP list. You are allowed
+to use those methods and headers. Go ahead and send
+your real request.")
+
+
+2. Discovering Server Capabilities (The Original Use Case)
+
+Before CORS was invented, OPTIONS was created so a client could ask a server, "What am I allowed to do to this specific URL?"
+Imagine you are building a generic API testing tool (like Postman). You point it at https://api.example.com/users/123.
+You don’t know if that endpoint allows you to delete the user, update the user, or only read the user.
+You can send a standard OPTIONS request to that URL. The server will reply with an Allow header detailing exactly
+what HTTP methods are supported for that specific resource.
+
+The Server’s Reply:
+
+HTTP
+HTTP/1.1 200 OK
+Allow: GET, HEAD, PUT
+
+(Translation: "For this specific user ID, you can read their data (GET/HEAD)
+or update their data (PUT), but you cannot DELETE them or POST new data here.")
+
+
+Technical Characteristics of OPTIONS
+
+Interviewers love testing your knowledge of HTTP method categories (Safe and Idempotent).
+
+• It is "Safe": A Safe HTTP method is one that is strictly read-only and does not alter the state of the server.
+  (OPTIONS, GET, and HEAD are safe).
+
+• It is "Idempotent": Sending the same OPTIONS request 1 time or 10,000 times yields the exact same result
+  and changes nothing on the backend.
+
+• No Body Required: A standard OPTIONS request generally does not contain a payload in the body, and the server’s
+  response usually has an empty body as well (often returning a 204 No Content status code).
+
+
+Understanding CORS (Cross-Origin Resource Sharing)
+
+To understand CORS (Cross-Origin Resource Sharing), you first have to understand the strict security rule that makes it necessary:
+the Same-Origin Policy (SOP).
+By default, web browsers are incredibly paranoid. If you are logged into your bank at https://bank.com, the browser will flat-out
+refuse to let a script running on a different website (like https://sketchy-site.com) make an HTTP request to your bank’s API.
+The browser enforces this rule: A frontend can only fetch data from a backend that has the exact same origin (Protocol + Domain + Port).
+But in modern web development, your frontend might be hosted on https://my-app.vercel.app and your backend on https://api.my-app.com.
+Because the domains are different, the browser blocks the connection by default.
+CORS is the mechanism that allows the server to tell the browser: "It’s okay, I recognize this frontend. Let them in."
+
+
+The Two Types of CORS Requests
+
+When your frontend tries to cross origins, the browser handles it in one of two ways, depending on how complex the request is.
+
+1. Simple Requests
+
+If your frontend makes a basic GET or POST request without any custom headers (like Authorization), the browser just
+sends the request immediately.
+
+However, it attaches an Origin header indicating where
+the request came from:
+
+Origin: https://my-app.vercel.app
+
+When the server replies, the browser intercepts the response
+and checks for a specific security header:
+
+Access-Control-Allow-Origin: https://my-app.vercel.app
+(or * to allow anyone).
+
+If that header is missing or doesn’t match, the browser throws
+a CORS Error in your console and hides the data from your
+JavaScript code.
+
+
+2. The Preflight Request (The CORS Workflow)
+
+Product-based APIs rarely use "simple" requests. Because you are sending JSON
+(Content-Type: application/json) and JWTs (Authorization: Bearer...), the browser
+considers the request "complex" or potentially dangerous.
+Before it dares to send your actual POST or PUT request, it initiates the
+Preflight Workflow.
+Here is the exact step-by-step conversation between the browser and the server
+during a Preflight:
+
+1. The OPTIONS Request: The Browser asks for permission.
+   Before sending your real request, the browser automatically
+   sends an invisible OPTIONS request to the server. It asks: "Hey, I am at
+   my-app.vercel.app. I want to send a PUT request with the Content-Type header.
+   Are you okay with this?"
+
+2. The Server’s Reply: The Server checks its VIP list.
+   The backend server receives the OPTIONS request. It checks its CORS configuration.
+   If allowed, it replies with a 200 OK (no body, just headers):
+   Access-Control-Allow-Origin: https://my-app.vercel.app
+   Access-Control-Allow-Methods: GET, POST, PUT
+   Access-Control-Allow-Headers: Content-Type
+
+3. The Real Request Executed: The actual data is sent.
+   The browser reads the server’s reply. Since it got the green light, it finally sends the actual
+   PUT request containing your JSON payload. If the server had rejected the OPTIONS request,
+   the browser would immediately throw a CORS error without ever sending the PUT request.
+
+
+Key insight: The browser enforces CORS, not the server. Even if a CORS error occurs, the server might have actually processed
+the request—but the browser intercepts the response and refuses to hand it over to your JavaScript frontend.
