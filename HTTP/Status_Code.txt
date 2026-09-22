@@ -1,0 +1,122 @@
+HTTP STATUS CODES
+
+When a client sends a request, the server always replies with a 3-digit number. This number instantly
+tells the client whether the request succeeded, failed, or needs further action, without the client having
+to read the entire response body.
+
+1. 1xx (Informational): "Hold on, I'm thinking..." (Rarely used directly by backend devs).
+2. 2xx (Success): "Here you go, it worked!"
+3. 3xx (Redirection): "Go over there instead."
+4. 4xx (Client Error): "You messed up. Fix your request."
+5. 5xx (Server Error): "I messed up. My code crashed."
+
+
+2xx: Success (Everything went according to plan)
+
+Code    Name              When to use it as a Backend Dev
+
+200     OK                The default success code. Used for almost every successful GET or PUT request.
+
+201     Created            Used exclusively after a successful POST request. It tells the client: "I successfully
+                           created a brand new row in the database."
+
+204     No Content         Used when a request succeeds, but the server has no data to send back. Commonly used
+                           for a successful DELETE request. (e.g., "The user is deleted, there is nothing left to show you").
+
+
+3xx: Redirection (The data moved)
+
+Code    Name                    When to use it as a Backend Dev
+
+301     Moved Permanently       Tells the browser: "This URL doesn't exist anymore, always go to this new one."
+                                The browser will actually update its bookmarks and cache.
+
+304     Not Modified            We talked about this with ETags! It tells the client: "The data hasn't changed since
+                                your last visit. Use your cached version."
+
+
+302 Found (Temporary Redirect)
+
+Analogy: "I haven't moved permanently, I am just on vacation. Come here for now, but check my old address again
+tomorrow."
+
+When to use it: Use this when you want to redirect a user, but you do not want the browser to update its bookmarks
+or cache the new URL. For example, if you have a special promotional page for a holiday sale, you temporarily
+redirect GET /store to GET /holiday-store using a 302. Once the sale ends, you just remove the redirect.
+
+
+4xx: Client Error (The Frontend did something wrong)
+
+Code    Name                    The Analogy & When to use it
+
+405     Method Not Allowed      Analogy: "The door exists, but you are trying to push when the sign clearly says pull."
+
+                                When to use it: Use this when the URL does exist, but the client used the wrong
+                                HTTP Verb. For example, if your backend has an endpoint for GET /users/123,
+                                but the frontend accidentally sends a POST /users/123 request. You return a 405
+                                (and usually include an Allow : GET header so they know what they should have done).
+
+409     Conflict                Analogy: "I understand your request, but doing it would break the rules of my database."
+
+                                When to use it: This is the standard code for Duplicate Data. If a user tries to sign
+                                up with an email address that already exists in your database, you return a 409 Conflict.
+                                It is also heavily used in ticket-booking apps: if two users click "Book Seat A1" at the
+                                exact same millisecond, the first one gets a 200 OK, and the second one gets a 409 Conflict
+                                because the seat is no longer available.
+
+
+Code    Name                    When to use it as a Backend Dev
+
+400     Bad Request             The catch-all for bad data. (e.g., The client sent a string for age instead of a number,
+                                or forgot a required field in the JSON body).
+
+401     Unauthorized             Trap Warning! This actually means Unauthenticated. It means the user is not logged
+                                in, or their JWT token is missing/expired.
+
+403     Forbidden               The user is logged in, but they don't have permission. (e.g., A regular user trying
+                                to access the /admin/dashboard endpoint).
+
+404     Not Found               The URL doesn't exist, or the database ID requested (like /users/9999) does not exist.
+
+429     Too Many Requests       Rate Limiting. The user is spamming the API and you are temporarily blocking them.
+
+
+5xx: Server Error
+(Your backend code failed)
+
+* If your server returns a 5xx, someone on the backend team is getting woken up at 3 AM.
+
+Code    Name                    When to use it as a Backend Dev
+
+500     Internal Server Error   Your code threw an unhandled exception or crashed. You never intentionally return this;
+                                your framework returns it when your code fails.
+
+502     Bad Gateway             Your API Gateway or Load Balancer tried to forward the request to a backend server,
+                                but the backend server sent back garbage or was offline.
+
+503     Service Unavailable     The server is intentionally down for maintenance, or it is completely overloaded
+                                and cannot handle any more traffic.
+
+
+501 Not Implemented
+
+Analogy:
+
+"I know what you are asking for, but the developers haven't written the
+code for this yet."
+
+When to use it: You use this when designing a new API. If you have defined the URL
+structure in your documentation (e.g., DELETE /history), but you haven't actually
+built the database logic yet, you can return a 501. It tells the frontend, "This is a
+valid request, but the feature is coming in a future update."
+
+
+504 Gateway Timeout
+
+Analogy: "I asked my coworker for the file, but they are ignoring me, so I'm giving up."
+
+When to use it: This is incredibly common in Microservices. Imagine your API Gateway
+receives a request, so it asks the internal Payment Microservice to process it.
+The Payment Microservice gets stuck in an infinite loop and stops responding.
+After waiting for 30 seconds, the API Gateway gives up and sends a 504 Gateway
+Timeout back to the frontend to say, "The upstream server took too long to answer."
