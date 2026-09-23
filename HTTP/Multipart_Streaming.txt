@@ -1,0 +1,114 @@
+MULTIPART REQUESTS & STREAMING RESPONSES
+
+If you want to build a feature that lets a user upload a profile picture, you need Multipart Requests. If you want to build a
+Netflix clone or an AI chatbot like me, you need Streaming Responses.
+Let’s break them down and see how they bend the standard rules of HTTP.
+
+
+1. Multipart Requests (Uploading Files)
+
+Usually, when a frontend sends data to a backend via a POST request, it sends a neat little JSON object
+(Content-Type: application/json).
+
+The Problem: JSON is strictly for text. If you want to upload a 5MB image, you could convert the image into a giant
+string of text (called Base64 encoding), but that makes the file size about 33% larger and forces the server to do a lot
+of heavy lifting to decode it.
+
+The Solution: We change the header to Content-Type: multipart/form-data.
+This tells the server: “I am sending you a single HTTP request, but the body is chopped up into distinct, separate
+compartments. Some compartments contain text, and some contain raw binary files.”
+
+How it works under the hood (The Boundary)
+
+To keep the compartments separate, the browser generates a random string of characters called a Boundary and uses
+it as a divider.
+Here is what the raw HTTP Request actually looks like:
+
+POST /api/profile HTTP/1.1
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundaryXYZ123
+
+------WebKitFormBoundaryXYZ123
+Content-Disposition: form-data; name="username"
+
+johndoe99
+
+------WebKitFormBoundaryXYZ123
+Content-Disposition: form-data; name="profile_picture"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+[...raw binary image data goes here...]
+
+------WebKitFormBoundaryXYZ123--
+
+Why Product Companies Care: In an interview, if they ask you to design an Instagram clone, you must specify that the photo
+upload endpoint uses multipart/form-data. It allows the backend to stream the raw image file directly to a storage bucket
+(like AWS S3) without crashing the server’s memory.
+
+
+2. Streaming Responses (Chunked Data)
+
+Normally, HTTP follows a strict “Bucket” model:
+1. The server gathers all the data from the database.
+2. It puts it all in one giant bucket (the HTTP Response).
+3. It calculates the exact Content-Length.
+4. It sends the bucket to the client.
+
+The Problem: What if the user requests a 2GB movie file? Or what if they ask an AI a question, and the AI takes 10 seconds
+to generate the full answer? The client would be staring at a loading spinner for an eternity waiting for the backend to fill up.
+
+The Solution: The “Hose” model. We drop the Content-Length header entirely and replace it with Transfer-Encoding: chunked.
+This tells the client: “I don’t know how big this file is going to be yet. I am going to keep this TCP connection open, and I will
+send you the data in small chunks as soon as I have them ready.”
+
+
+1. The Handshake:
+   Status 200 OK.
+
+   HTTP/1.1 200 OK
+   Transfer-Encoding: chunked
+
+   The server replies instantly with 200 OK and Transfer-Encoding: chunked. The browser knows to start listening.
+
+2. Chunk 1 Arrives:
+   Immediate display.
+
+   5f
+   [first chunk of data...]
+
+   The server sends the first 5 seconds of the video (or the first 10 words of the AI’s answer).
+   The browser instantly plays the video or renders the text on screen.
+
+3. Continuous Streaming:
+   Connection held open.
+
+   4a
+   [next chunk of data...]
+
+   The server keeps sending chunks one by one. The browser keeps appending them to the screen.
+
+4. The Final Chunk:
+   Zero-length chunk.
+
+   0
+
+   When the movie is over or the AI is done typing, the server sends a special chunk with a length of 0. This tells the browser:
+   “The stream is finished. You can close the connection.”
+
+
+How to Answer in an Interview
+
+If an interviewer asks: “How does an AI chatbot like ChatGPT send text to the screen word-by-word instead of waiting to show the whole paragraph?”
+
+Your Answer
+
+1. Identify the limitation: “Standard HTTP requests wait for the entire payload to be generated before sending the response, which causes high latency
+   for AI generation.”
+
+2. Provide the HTTP solution: “To solve this, the backend uses a streaming response. In standard HTTP, this is done by omitting the Content-Length
+   header and using Transfer-Encoding: chunked.”
+
+3. Explain the workflow: “The server holds the HTTP connection open and pushes down tiny chunks of data (tokens) as soon as the LLM generates them.
+   The frontend receives these chunks asynchronously and appends them to the DOM in real-time. The stream ends when the server sends a zero-length chunk.
+
+(Bonus SDE Flex: “Alternatively, you could use Server-Sent Events (SSE), which is an API built specifically for holding a one-way connection open to stream
+text events from the server to the browser”).
