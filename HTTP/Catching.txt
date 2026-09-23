@@ -1,0 +1,75 @@
+HTTP CACHING
+
+If your backend has to query the database and calculate the exact same response for 10,000 different
+users, your servers will melt and your company will waste thousands of dollars on AWS bills.
+Caching is the art of not doing the same work twice.
+In HTTP, caching is a set of rules (using Headers) where the server tells the client: "I worked hard to
+generate this response. Save it, and don't ask me for it again for a while."
+
+
+1. Where does caching actually happen?
+
+There are two main places an HTTP response can be cached before it ever reaches your backend code:
+
+• Private Caches (The Browser): Your Chrome or Safari browser has a local cache on your hard drive.
+  It is "private" because it only belongs to you. It caches your specific user data, CSS files, and images
+  so the website loads instantly when you click "Back".
+
+• Shared Caches (CDNs and Proxies): Companies use tools like Cloudflare, AWS CloudFront, or Nginx.
+  These servers sit between the user and your backend. They are "shared" because if User A requests
+  the homepage, the CDN caches it. When User B, C, and D request the homepage, the CDN serves
+  the cached copy. Your backend never even sees the requests for B, C, and D.
+
+
+2. Freshness: How long is the data good for?
+
+As a backend developer, you control the cache using the Cache-Control header. We touched on this earlier,
+but here are the exact directives you need to know for system design interviews:
+
+Cache-Control Directive    What it means                                      Real-World Use Case
+
+max-age=3600               "Keep this for 3600 seconds (1 hour)."             A blog post or a company logo that
+                                                                                rarely changes.
+
+private                    "Only the user's browser is allowed to cache       A user's bank account balance or
+                            this. CDNs must NOT cache it."                      shopping cart.
+
+public                     "Anyone, including shared CDNs, can cache          Netflix's catalog of public movies.
+                            this for everyone to see."
+
+no-store                   "NEVER save this anywhere. Ask the backend         Highly sensitive data like passwords
+                            every time."                                       or medical records.
+
+no-cache                   "You can save this, but you MUST ask the           A user profile that might change
+                            backend for permission before using it."           at any moment.
+
+
+Massive Security Trap: If your backend returns a user's private dashboard with Cache-Control: public,
+max-age=3600, the CDN will cache it. The next person who logs in will see the first user's dashboard
+instead of their own. Always use private for user-specific data!
+
+
+3. Validation: Is my cached copy still good?
+
+If the max-age timer runs out, or if the server explicitly said no-cache, the client has to ask the server
+for permission to use the saved file.
+This is called Validation (or a Conditional Request). HTTP provides two ways to do this:
+
+Method A: The Fingerprint (ETags)
+
+We covered this! The server sends a hash of the file (ETag: "hash123"). Next time, the client asks:
+If-None-Match: "hash123". If the hash hasn't changed, the server sends a 304 Not Modified and saves bandwidth.
+
+
+Method B: The Timestamp (Last-Modified)
+
+Instead of a hash, the server simply tells the client exactly when the file was last updated.
+
+• Server sends: Last-Modified: Wed, 21 Oct 2026 07:28:00 GMT
+• Client asks later: If-Modified-Since: Wed, 21 Oct 2026 07:28:00 GMT (Translation: "Has this file been edited
+  since last Wednesday?")
+• Server decides: If the database shows the file wasn't edited, it returns 304 Not Modified. If it was edited,
+  it returns a 200 OK with the new file.
+
+(Note: ETags are generally preferred over Last-Modified because timestamps can be tricky with server clock syncing,
+while hashes are mathematically absolute).
