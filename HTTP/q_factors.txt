@@ -1,0 +1,94 @@
+Q-factors (Quality Values)
+
+Q-factors (short for Quality Values) are the secret language browsers use to tell the server how to
+prioritize their preferences.
+When a client sends a negotiation header (like Accept, Accept-Language, or Accept-Encoding),
+it rarely just asks for one thing. It usually provides a backup plan, a backup to the backup plan,
+and a worst-case scenario.
+The q-factor is the weight assigned to each option.
+
+
+1. The Rules of the Q-Factor Scale
+
+• The scale goes from 0.0 (I absolutely refuse to accept this) to 1.0 (This is exactly what I want).
+• If an option does not have a q-factor explicitly written next to it, the server automatically assumes
+  it is q=1.0.
+• The options are separated by commas, and the q-factor is separated from the option by a semicolon (;).
+
+The Restaurant Analogy:
+
+Imagine ordering at a restaurant: “I want a steak (q=1.0). If you are out of steak, I will take
+chicken (q=0.8). If you are out of chicken, just bring me literally anything on the menu (q=0.1).
+But absolutely NO fish (q=0.0).”
+
+
+2. Breaking Down a Real Browser Request
+
+If you open Chrome right now and navigate to a website, Chrome automatically sends this exact
+Accept header behind the scenes:
+
+Accept: text/html, application/xhtml+xml, application/xml;q=0.9, image/avif, image/webp, */*;q=0.8
+
+If you are a backend developer writing the parser, here is exactly how your server ranks this:
+
+1. Priority 1 (q=1.0): text/html, application/xhtml+xml, image/avif, image/webp.
+   (Notice these have no q listed, so they default to 1.0. The server will try to provide one of these first).
+
+2. Priority 2 (q=0.9): application/xml.
+   (If the server can't do HTML or those specific images, it will drop down and try to provide standard XML).
+
+3. Priority 3 (q=0.8): */*.
+   (This is the wildcard. It means: “If you can't give me any of the above, just give me whatever you have, I'll figure it out”).
+
+
+3. The “Hard No” (q=0.0)
+
+While 0.1 to 0.9 are just preferences, q=0 is a strict rule. It is used to explicitly forbid the server
+from sending a specific format.
+
+Real-world example (Bandwidth limits):
+
+Imagine you are building a mobile app for an area with terrible internet, and you strictly want compressed data.
+
+Accept-Encoding: br;q=1.0, gzip;q=0.8, identity;q=0.0
+
+• br (Brotli): Yes please!
+• gzip: Sure, if you have to.
+• identity;q=0.0: NEVER send me uncompressed data. If you can't compress it, fail the request
+  (return 406 Not Acceptable).
+
+
+4. Why Product-Based Companies Care (i18n)
+
+In interviews for global companies (like Netflix, Amazon, or Google), q-factors almost always come up
+when discussing Internationalization (i18n).
+If a user in Montreal, Canada opens your app, their phone will send an Accept-Language header that looks like this:
+
+Accept-Language: fr-CA, fr;q=0.9, en-US;q=0.8, en;q=0.7
+
+Your backend needs to parse this perfectly to deliver the right content:
+
+1. fr-CA (1.0): Look for Canadian French first.
+2. fr;q=0.9: If we don't have Canadian French, fall back to standard French.
+3. en-US;q=0.8: If we don't have any French at all, give them US English.
+4. en;q=0.7: If we don't have US English, give them standard English.
+
+If your backend ignores the q-factors and just picks the first language it supports alphabetically,
+you will ruin the user experience.
+
+
+5. How to Answer in an Interview
+
+If an interviewer asks: “How does a server determine which language to return if a client sends multiple options
+in the Accept-Language header?”
+
+Your Answer Structure:
+
+1. Introduce Q-factors: “The server determines preference by parsing the q-factors, or quality values, attached to the header.”
+
+2. Explain the scale: “Q-factors range from 0.0 to 1.0. If a value is omitted, it defaults to 1.0. The server sorts the
+   requested formats in descending order based on these weights.”
+
+3. Give the fallback example: “For example, if the client sends fr;q=1.0, en;q=0.5, the server will first check if it has a
+   French translation. If not, it falls back to the secondary preference of English. If it supports neither, it will usually
+   fall back to the application's default language.”
