@@ -1,0 +1,72 @@
+CDN (Content Delivery Network)
+
+A CDN (Content Delivery Network) is the ultimate realization of the caching concepts we just discussed.
+It takes the idea of “don't do the same work twice” and applies it on a global scale to fight the laws of physics.
+To understand why product-based companies rely heavily on CDNs, we need to understand the problem:
+Latency.
+
+
+1. The Problem: The Speed of Light
+
+Imagine your company's main backend server (the Origin Server) is located in a data center in New York.
+
+• When a user in New York requests your website's logo, the data travels 10 miles. It takes 5 milliseconds.
+• When a user in Sydney, Australia requests that exact same logo, the data has to travel 10,000 miles
+  through undersea cables. Even at the speed of light, it takes 300 milliseconds.
+
+If your website has 50 images, CSS files, and JavaScript bundles, that 300ms delay adds up quickly.
+The Australian user experiences a slow, frustrating website.
+
+
+2. The Solution: The CDN Architecture
+
+A CDN fixes this by placing hundreds of “mini-servers” (called Edge Nodes or Points of Presence / PoPs)
+all over the world.
+
+Here is how the workflow changes:
+
+1. The First Request (Cache Miss): An Australian user requests the logo. The request goes to the nearest
+   CDN Edge Node in Sydney. The Sydney node says, “I don't have this logo yet.” It fetches it from the
+   New York Origin Server, saves a copy in its own local memory, and sends it to the user. This first
+   request is slow.
+
+2. Subsequent Requests (Cache Hit): A second user in Sydney requests the logo. The request goes to the
+   Sydney Edge Node. The node says, “I already have this!” and sends it back instantly. The New York
+   server never even knows this request happened.
+
+
+Analogy: Think of the Origin Server as the main Amazon warehouse, and the CDN Edge Nodes as the local delivery
+lockers in your neighborhood. Amazon ships popular items to the lockers ahead of time so you can get them in 5 minutes
+instead of waiting for a truck from across the country.
+
+
+3. Why put a CDN in front of your architecture?
+
+It isn't just about speed; it's about survival. Here are the three massive benefits you should mention in an interview:
+
+① Reduced Latency: By serving static assets (Images, CSS, JS, HTML) from a server physically closer
+   to the user, the website loads significantly faster.
+
+② Reduced Load on Origin: If a blog post goes viral and gets 1 million views, a CDN handles 99.9%
+   of those requests. Your backend database only has to process the very first request, preventing your
+   servers from crashing under the sudden traffic spike.
+
+③ DDoS Protection: Distributed Denial of Service attacks happen when hackers use thousands of bot
+   computers to spam your server with fake requests to crash it. Because CDNs have massive global
+   bandwidth, they can absorb and filter out this junk traffic at the edge, protecting your vulnerable
+   Origin Server.
+
+
+4. The Dynamic Content Challenge
+
+Here is the trickiest part of CDNs for a backend developer: You cannot cache everything.
+
+• Static Content (Cacheable): Images, videos, CSS, public blog posts. (Use Cache-Control: public).
+
+• Dynamic Content (Non-Cacheable): A user's shopping cart, a live bank balance, or a personalized feed.
+  If you accidentally cache a shopping cart on the CDN, User B might see User A's credit card details!
+  (Use Cache-Control: private or no-store).
+
+Modern CDNs (like Cloudflare or AWS CloudFront) are getting smarter. They can now run tiny pieces of backend
+code right at the edge (called Edge Computing or Edge Functions) to handle basic logic without ever talking to your
+main server.
