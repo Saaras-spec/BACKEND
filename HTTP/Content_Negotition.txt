@@ -1,0 +1,81 @@
+CONTENT NEGOTIATION
+
+Content Negotiation is the mechanism where the client and the server have a quick conversation
+to agree on the best possible format, language, or compression for the data before it is sent.
+
+Think of it like walking into an international embassy. You hand them a card that says,
+“I strongly prefer to speak French, but I will accept English if you don’t speak French.”
+The embassy clerk reads the card and replies in French.
+
+Here is exactly how this negotiation happens under the hood.
+
+
+1. The Three Pillars of Negotiation
+
+The client always initiates the negotiation by sending specific Accept-* headers. The server reads them,
+makes a decision, and replies with corresponding Content-* headers.
+
+The Client Asks (Accept-*)             The Server Replies (Content-*)       What they are negotiating
+
+Accept: application/json                Content-Type: application/json        Format: Does the client want JSON,
+                                                                                XML, a PDF, or raw HTML?
+
+Accept-Language: es-MX                  Content-Language: es-MX              Language: Does the user want the error
+                                                                                message in Mexican Spanish or US English?
+
+Accept-Encoding: gzip                   Content-Encoding: gzip               Compression: Can the client unzip a gzip
+                                                                                or brotli file to save bandwidth?
+
+
+2. The SDE Secret: Quality Values (q-factors)
+
+In an SDE interview, if you just say “the client asks for JSON,” you sound like a junior developer.
+To sound like a mid-level engineer, you need to explain how the client ranks its preferences.
+
+Clients do this using q-factors (quality values), which range from 0.0 (unacceptable) to 1.0 (preferred).
+
+Look at this real-world Accept header sent by a browser:
+
+Accept: application/json; q=1.0, application/xml; q=0.8, text/plain; q=0.5
+
+How the backend reads this:
+
+1. “I want JSON. That is my top priority (q=1.0 is implied if omitted, but explicitly stated here for example).”
+2. “If you literally cannot generate JSON, I will settle for XML (q=0.8).”
+3. “If you can’t do XML either, just give me plain text (q=0.5).”
+
+
+3. What happens if the negotiation fails?
+
+Imagine a client sends Accept: application/pdf, but your backend is only programmed to output JSON.
+Your server has two choices:
+
+1. Be stubborn (Strict):
+
+   Return a 406 Not Acceptable status code.
+   This tells the client, “I understood your request,
+   but I physically cannot generate a PDF for you.”
+
+2. Be helpful (Loose):
+
+   Ignore the Accept header and just send the JSON
+   anyway with Content-Type: application/json,
+   hoping the client can still figure it out.
+   (Most modern APIs do this for simplicity).
+
+
+4. Why Product-Based Companies Care
+
+You might be wondering: Why wouldn’t an API just force everyone to use JSON?
+
+If you are working at a massive enterprise company, you aren’t just serving modern React web apps.
+You might have:
+
+• A brand new mobile app that wants JSON.
+• A 15-year-old legacy banking system that can only parse XML.
+• A smart watch that wants highly compressed MessagePack data to save battery.
+
+Instead of building three different URLs (/api/weather-json, /api/weather-xml),
+Content Negotiation allows you to build one single endpoint (/api/weather). The backend logic (fetching the temperature
+from the database) is the exact same. At the very last millisecond, the server checks the Accept header
+and formats that temperature into whichever layout the client requested.
