@@ -14,6 +14,4 @@ it works on the Payload like the data which is being actually sended through htt
                         
     how it works:  client always send this header Accept-Encoding : gzip,br.. , it tells the server that client can decompress this file and all, so if the file size is to large then server sends this compressed file,
                     with Content-Encoding : gzip.
-
                     but if the client want to send the data to the server then it just send it and write content-Encoding:gzip thats it.
-                    

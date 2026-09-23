@@ -21,7 +21,7 @@ Code    Name              When to use it as a Backend Dev
                            created a brand new row in the database."
 
 204     No Content         Used when a request succeeds, but the server has no data to send back. Commonly used
-                           for a successful DELETE request. (e.g., "The user is deleted, there is nothing left to show you").
+                           for a successful DELETE request. (e.g., "The usgiter is deleted, there is nothing left to show you").
 
 
 3xx: Redirection (The data moved)
