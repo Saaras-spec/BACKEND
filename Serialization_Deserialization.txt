@@ -1,0 +1,129 @@
+SERIALIZATION & DESERIALIZATION
+
+Serialization is the process of flattening a complex, in-memory data structure into a linear stream of bytes or text.
+Deserialization is the exact reverse: parsing that linear stream back into a live data structure in memory.
+As a backend engineer, you apply this concept every time your server communicates with a database, a cache,
+a frontend client, or another microservice.
+Here is the complete SDE mastery guide to this concept.
+
+
+1. The Computer Science Problem (RAM vs. Network)
+
+In your Node.js backend, a JavaScript object lives in Heap Memory. If that object contains an array, the object
+doesn’t physically hold the array; it holds a memory pointer (an address) telling the CPU where to find it.
+Network cables and hard drives do not understand memory pointers. They can only process a 1D, continuous
+stream of bytes.
+Serialization traverses your object in RAM, extracts the actual values, and strips away the memory pointers.
+It encodes the data into a standardized, self-contained format that can safely travel across the internet.
+
+
+In-Memory Object (RAM)
+
+user = {
+    name: "Kartik",
+    age: 21,
+    skills: ["JS", "Python"]
+}
+
+This is a memory pointer
+(address) to the array in Heap.
+
+
+Linear Stream (Network)
+
+{"name":"Kartik",
+"age":21,
+"skills":["JS","Python"]}
+
+A 1D, continuous
+stream of data (no pointers).
+
+
+Reconstructed Object (RAM)
+
+user = {
+    name: "Kartik",
+    age: 21,
+    skills: ["JS", "Python"]
+}
+
+A new object is created in memory
+with new memory addresses.
+
+
+2. The Universal Translator
+
+Because serialization strips away the host language’s specific memory rules, it acts as a universal translator.
+A Node.js backend can serialize a JavaScript object into a JSON text string. That string travels over HTTP
+to a completely different server. A Java backend receives the text string, deserializes it, and allocates brand new
+memory to turn it into a native Java Object (POJO). Neither language needs to understand how the other works;
+they only need to understand the shared serialization format.
+
+
+Node.js (JavaScript)
+
+Serialize JS Object
+
+        ↓
+
+JSON String
+
+{"name":"Kartik","age":21}
+
+(Travels over HTTP)
+
+        ↓
+
+Java (Backend)
+
+Deserialize to Java Object
+(POJO)
+
+
+3. The Big SDE Decision: JSON vs. Binary
+
+In product-based company interviews, you will be asked to design microservice architectures. The serialization format
+you choose drastically impacts system performance.
+
+Feature                  JSON (Text Serialization)                  Protobuf / gRPC (Binary Serialization)
+
+Format                   Text strings ({"name":"Kartik"})             Raw binary (01001011...)
+
+Payload Size              Large (contains structural characters       Very Small (data is tightly packed using TLV
+                          like {, ", :))                             encoding)
+
+CPU Cost                  High (Lexical string parsing is slow)       Low (Direct mapping to memory structures)
+
+Readability               Human-readable (easy to debug)              Machine-only (requires a schema to decode)
+
+Best Use Case             Public REST APIs facing web browsers        Internal microservice-to-microservice
+                          and mobile apps                              communication.
+
+
+4. The Security Threat: Insecure Deserialization
+
+This is an OWASP Top 10 security vulnerability. It happens when a backend blindly deserializes data provided by a user
+without validating it.
+If a backend uses a native serialization tool (like Python’s pickle or Java Serialization), the serialized data stream often
+includes instructions on what type of objects to create. A hacker can intercept the stream and modify it to instantiate a
+malicious system-level class. When the server deserializes it, it accidentally allocates memory for the hacker’s code and
+executes it, leading to Remote Code Execution (RCE).
+The Fix: Always use data-only serialization formats like JSON, and validate the schema before processing the data.
+
+
+How to Answer in an Interview
+
+If an interviewer asks: “Explain the lifecycle of data serialization in a client-server architecture and the trade-offs of the format you choose.”
+
+Your Answer Structure:
+
+1. Define the lifecycle: “When a client sends data, it serializes its in-memory objects into a linear byte stream—typically a JSON string—
+   so it can be transmitted over the network. The server receives this HTTP payload and deserializes it, allocating new memory to
+   rebuild the object in its native language environment.”
+
+2. Explain the trade-offs: “For public APIs, I use JSON because it is natively supported by all browsers and is highly debuggable.
+   However, text-based deserialization is a synchronous, CPU-heavy operation.”
+
+3. Provide the optimization: “If I am designing high-throughput internal microservices, I would swap JSON for a binary serialization
+   format like Protocol Buffers. Binary serialization drastically reduces the network payload size and bypasses expensive text parsing,
+   allowing the CPU to deserialize the data much faster, which prevents the Node.js event loop from blocking under heavy load.”
