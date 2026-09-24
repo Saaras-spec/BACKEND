@@ -1,0 +1,79 @@
+COMMON BACKEND API DESIGN INTERVIEW QUESTIONS
+
+
+1. The API Design Mini-Question
+
+The Question: “Design the API endpoints for an e-commerce cart where a user can add items, view items, and
+remove a specific item.”
+
+What they are testing: Your understanding of nested routes, path parameters, and keeping verbs out of your URLs.
+Junior developers often make the mistake of creating URLs like POST /addItem.
+
+Your Answer Structure:
+
+Action          HTTP Method          Endpoint                              Explanation
+
+View Items      GET                  /users/:userId/cart/items             Uses a nested route to show relationship.
+
+Add Item        POST                 /users/:userId/cart/items             Uses the exact same URL as above, but the
+                                                                             POST method indicates creation.
+
+Remove Item     DELETE               /users/:userId/cart/items/:itemId      Uses a path parameter to identify the exact
+                                                                             item to destroy.
+
+
+2. The “Path vs Query” Debate
+
+The Question: “We are building a search feature to find users who are active and over 18. How should we structure
+that route?”
+
+What they are testing: Do you know when to use path parameters (for identification) versus query parameters (for
+filtering)?
+
+Your Answer Structure:
+
+1. Explain that because you are filtering a collection rather than looking up one specific user by an ID, you must
+   use query parameters.
+
+2. The correct route is GET /users?status=active&minAge=18.
+
+3. The SDE Flex: Mention that if you used path parameters /users/active/18, the API becomes incredibly rigid.
+   If the product manager wants to add a “location” filter next week, the query parameter approach naturally
+   scales (&location=delhi), while the path approach would require a complete rewrite.
+
+
+3. The Backward Compatibility Test
+
+The Question: “We have 10,000 mobile users on version 1 of our app. We need to completely change how the
+/profile endpoint returns data for version 2. How do you do this safely?”
+
+What they are testing: Route versioning. Do you understand that you cannot force mobile users to update their apps
+instantly?
+
+Your Answer Structure:
+
+1. State clearly that modifying the existing /profile route will instantly crash all v1 mobile apps.
+
+2. Explain that you would implement Route Versioning, either via the URL (/v1/profile and /v2/profile),
+   or via HTTP Headers (Accept-Version: v2).
+
+3. Outline the deprecation process: Keep both routes running simultaneously, add analytics to monitor v1 traffic,
+   and only sunset the v1 route when the legacy traffic drops to a safe threshold.
+
+
+4. The Execution Order Trap
+
+The Question: “Where exactly do you place your 404 Catch-All route in your application, and what happens if you
+place it incorrectly?”
+
+What they are testing: Your understanding of how the router actually parses incoming requests behind the scenes.
+
+Your Answer Structure:
+
+1. Explain that backend routers read routes sequentially from top to bottom.
+
+2. State that the Catch-All route (*) must always be placed at the absolute bottom of the routing file.
+
+3. Explain the consequence: If it is placed at the top, it acts as a black hole. It will successfully match every single
+   incoming request (even valid ones like /login), instantly returning a 404 error before the router ever gets a
+   chance to reach your actual endpoints.
