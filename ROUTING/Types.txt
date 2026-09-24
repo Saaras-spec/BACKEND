@@ -1,0 +1,84 @@
+ROUTING IN BACKEND
+
+Routing is the switchboard of your backend. When an HTTP request arrives at your server, the router acts
+as the traffic cop, looking at the URL and the HTTP Method (GET, POST), and saying: “Ah, you want GET /users.
+Let me send you to the specific block of code (the controller) that fetches the users from the database.”
+In modern frameworks (like Express.js for Node or Next.js API routes), you design this map carefully.
+Let’s break down the different types of routes product-based companies use.
+
+
+1. Static Routes
+
+These are exact, hardcoded matches. The URL must be typed exactly as defined.
+
+• Syntax (Express): app.get('/about', ...)
+• Use Case: Pages or endpoints that never change structurally.
+• Example: GET /login, POST /logout, GET /health-check.
+
+
+2. Dynamic Routes (Path Parameters)
+
+You cannot write a static route for every single user in your database (/users/alice, /users/bob). Instead,
+you use a Path Parameter to act as a placeholder or variable.
+
+• Syntax (Express): app.get('/users/:id', ...)
+• Syntax (Next.js): A file named app/users/[id]/route.js
+• Use Case: Identifying a specific resource.
+• Example: A request to GET /users/123 triggers the route. Your backend code extracts the 123 variable,
+  queries the database for user 123, and returns the data.
+
+
+3. Query Parameters
+
+Instead of being part of the structural path, Query Parameters are key-value pairs tacked onto the very end
+of the URL after a question mark ?.
+
+• Syntax: /users?role=admin&age=25
+• Use Case: Filtering, sorting, searching, or paginating a list of resources. The underlying resource (/users)
+  remains the same, but you are modifying the output.
+
+
+4. Nested Routes
+
+APIs represent relationships. If a user has multiple posts, the URL structure should reflect that hierarchy logically.
+
+• Example: GET /users/123/posts/456
+• How to read it: “Fetch the post with ID 456 that belongs to the user with ID 123.”
+• Why Product Companies care: It enforces authorization implicitly. When this request hits the backend,
+  you can check if user 123 actually owns post 456 before returning it, preventing ID-guessing hacks
+  (Insecure Direct Object Reference).
+
+
+5. Route Versioning
+
+Once an API is live and a mobile app is using it, you cannot break the existing routes, because some users
+will never update their apps. When you need to make breaking changes (like changing a username field from
+a string to an object), you must version the route.
+
+• URL Versioning (Most Common): api.company.com/v1/users and api.company.com/v2/users.
+  Both run simultaneously on your backend.
+• Header Versioning (Cleaner URL): The URL stays /users, but the client sends a header: Accept-Version: v2.
+
+
+6. Route Deprecation
+
+If you release v2, you don’t want to maintain v1 forever. You must safely sunset it.
+
+1. Monitor: The backend tracks how many requests are still hitting v1.
+2. Warn: The backend starts returning a Warning: 299 - API Deprecated HTTP header to alert developers
+   their app is going to break soon.
+3. Sunset: On a specific date, you delete the v1 code and configure the router to return a 410 Gone status code,
+   cleanly telling the client the endpoint is permanently dead.
+
+
+7. Catch-All Routes (Wildcards)
+
+This is a route designed to catch requests that do not match anything else in your routing table.
+
+• Syntax: app.get('*', ...) or app.all('*', ...)
+• Placement: It MUST be placed at the very bottom of your routing file. The router checks routes top-to-bottom.
+  If you put it at the top, it will swallow every single request.
+• Use Cases:
+  • Backend API: Returning a clean, formatted 404 Not Found JSON error instead of crashing or returning an ugly HTML page.
+  • Frontend (Next.js/React): If you are serving a Single Page Application (SPA), the backend catches any unknown URL
+    (like /dashboard) and returns the index.html file so the React router can take over on the client side.
