@@ -1,0 +1,120 @@
+SESSION-BASED AUTHENTICATION
+
+By default, the HTTP protocol is stateless. This means every time you click a link or refresh a page, the server
+completely forgets who you are. It treats every single request as if it is coming from a total stranger.
+To keep a user logged in, we have to cheat the system. We use Session-Based Authentication.
+When a user logs in, the backend creates a VIP pass (a Session ID) and forces the browser to carry that pass.
+Every time the browser makes a new request, it flashes the VIP pass at the server, proving they are already
+authenticated.
+
+
+1. The CS Reality (How it works under the hood)
+
+Session authentication is a Stateful architecture. This means the server has to actively allocate memory
+to remember the user.
+Here is the exact step-by-step cryptographic and network flow:
+
+
+1. The Login Request (Client → Server)
+
+The user submits their email and password via a POST /login request.
+The backend hashes the password and verifies it against the database.
+
+
+2. Session Creation (Server Memory Allocation)
+
+The server creates a record in its memory (or a fast database
+like Redis). It generates a long, cryptographically random,
+unique string called a Session ID (e.g., s_7x9f2A...).
+It maps this ID to the user's database ID.
+
+
+Server Memory / Redis
+
+Session ID        User ID
+s_7x9f2A...       123
+
+Store in memory
+(or Redis)
+
+
+3. The Set-Cookie Header (Server → Client)
+
+The server sends an HTTP 200 OK response. Critically, it
+attaches a header: Set-Cookie: session_id=s_7x9f2A...
+
+HTTP/1.1 200 OK
+Set-Cookie: session_id=s_7x9f2A...
+(Response Body)
+
+
+4. The Browser Stores It (Browser automation)
+
+The browser sees the Set-Cookie header and automatically
+saves that string to the user's hard drive. The frontend
+JavaScript developer doesn't have to write any code to do this.
+
+Browser Storage (Cookies)
+
+Automatically save
+session_id=s_7x9f2A...
+to hard drive
+
+
+5. Subsequent Requests (Client → Server)
+
+The user clicks “View Dashboard”. The browser automatically
+attaches Cookie: session_id=s_7x9f2A... to the new HTTP request.
+The backend reads the cookie, looks up that string in Redis,
+finds the corresponding User ID, and allows access.
+
+GET /dashboard
+Cookie: session_id=s_7x9f2A...
+
+Lookup session_id
+→ get User ID
+→ allow access
+
+s_7x9f2A... → 123
+
+
+The Problem with Multiple Servers (Load Balancing)
+
+If Amazon uses standard sessions, User A logs in, and Server 1 saves their Session ID in their local RAM.
+Ten seconds later, User A adds an item to their cart. Amazon has 5,000 servers, so the Load Balancer routes
+this new request to Server 2 to balance the traffic.
+Server 2 looks at the user's cookie, checks its own local RAM, and says: “I have no idea who you are.”
+The user is suddenly logged out.
+
+
+User A
+(Browser)
+
+        |
+        | 1. Login
+        | (session_id=s_7x9f2A...)
+        ↓
+
+Load Balancer
+
+       ↙              ↘
+
+Server 1              Server 2
+(local RAM)           (local RAM)
+
+Session ID            Session ID
+s_7x9f2A...            (empty)
+
+User ID
+123
+
+✓ User A logged in      ✗ “I have no idea
+                         who you are.”
+                         → User logged out
+
+
+The Solution
+
+You must extract the session storage out of the individual servers' RAM and put it into a centralized, lightning-fast,
+in-memory database like Redis. This way, whether the load balancer sends the user to Server 1, Server 2, or Server 5000,
+all servers check the same centralized Redis cache to validate the Session ID.
