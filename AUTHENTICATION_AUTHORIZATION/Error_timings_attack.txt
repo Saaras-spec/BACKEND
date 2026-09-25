@@ -1,0 +1,129 @@
+Information Disclosure & Timing Attacks
+
+These two topics belong to a category of security vulnerabilities known as Information Disclosure or Side-Channel Attacks.
+
+Hackers don't always need to break your complex cryptography. Sometimes, they can just listen to what your server complains about (Error Messages), or use a stopwatch to measure how long it takes your server to complain (Timing Attacks).
+
+
+1. Information Disclosure via Error Messages
+
+The Core Concept:
+
+When a user logs in and fails, the server must return an error. If the server says, “Email not found”, you just gave a hacker valuable information. They now know that specific email does not belong to an account. If the server says, “Invalid password”, the hacker now knows the email is valid, and they can focus all their effort on brute-forcing the password.
+
+This is called User Enumeration.
+
+
+The CS Reality:
+
+In a production backend, error messages must be deliberately vague to external users, while remaining highly detailed in internal server logs for the developers.
+
+
+Example of User Enumeration
+
+Vulnerable Error Messages
+
+POST /login
+{
+  email: alice@gmail.com,
+  password: 123
+}
+→ 404 Not Found
+“Email not found”
+
+→ Now knows alice@gmail.com is NOT a valid account.
+
+
+POST /login
+{
+  email: bob@gmail.com,
+  password: 123
+}
+→ 401 Unauthorized
+“Invalid password”
+
+→ Now knows bob@gmail.com IS a valid account and can focus on brute-forcing the password.
+
+
+Best Practice: Use Generic Error Messages
+
+POST /login
+{
+  email: any-email@gmail.com,
+  password: 123
+}
+→ 401 Unauthorized
+“Invalid email or password”
+(generic message)
+
+
+Internal Server Log (for developers only)
+
+[INFO] Login failed for email:
+alice@gmail.com
+Reason: User not found in database
+IP: 192.168.1.10
+Timestamp: 2024-01-25 10:30:00
+
+
+2. Timing Attacks
+
+The Core Concept:
+
+A timing attack is a side-channel attack where a hacker measures exactly how many milliseconds your server takes to respond to a request. By analyzing these tiny time differences, they can guess private data, like an API key, a password, or a digital signature, byte by byte.
+
+
+The CS Reality (The Early Exit Flow):
+
+Under the hood, when JavaScript (or any language) compares two strings using ===, it compares them character by character from left to right.
+
+If you compare password === input:
+
+• If the first character is wrong, the CPU stops immediately (an “early exit”) and returns false. This takes 1 millisecond.
+
+• If the first character is right, but the second is wrong, it checks two characters before stopping. This takes 2 milliseconds.
+
+An attacker can send 1,000 requests guessing the first letter. The letter that takes the server slightly longer to reject is the correct letter. They lock in that letter and move to the next one. They can crack a 32-character API key in minutes.
+
+
+How Timing Attack Works (Example)
+
+Let the correct API key be: SECRET...
+
+Attacker’s Guess       How many characters are correct?       Response Time (approx)
+
+Axxxx...               0 (first char wrong)                   1 ms
+Sxxxx...               1 (first char correct)                2 ms
+SExxx...               2 (first two correct)                 3 ms
+SECxx...               3 (first three correct)              4 ms
+...                    ...                                    ...
+
+
+Vulnerable Comparison (Early Exit)
+
+if (password === input) {
+    // Allows login
+} else {
+    // Rejects (time varies based on match)
+}
+
+
+Secure Comparison (Constant Time)
+
+const isValid = crypto.timingSafeEqual(
+    Buffer.from(password),
+    Buffer.from(input)
+);
+
+// Executes in a fixed amount of time
+// regardless of where the mismatch occurs,
+// masking any timing differences.
+
+
+How to Answer in an Interview
+
+If the interviewer asks: “What is a timing attack, and how do you prevent it when validating sensitive tokens like API keys?”
+
+Your Answer:
+
+“A timing attack is a side-channel vulnerability where an attacker measures the response time of a server to deduce private data. This happens because standard string equality operators (like ===) evaluate characters sequentially and exit early upon the first mismatch. An attacker can exploit this early exit to guess a token character-by-character based on latency spikes. To prevent this, backend engineers must use constant-time comparison algorithms—like Node’s crypto.timingSafeEqual()—which execute in a fixed amount of time regardless of where the mismatch occurs, masking any timing differences.”
