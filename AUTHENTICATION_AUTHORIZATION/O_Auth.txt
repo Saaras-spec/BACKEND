@@ -105,3 +105,138 @@ Your Answer:
 In the Authorization Code flow, the client app redirects the user to the Authorization Server. The user authenticates and consents, and the server redirects back to the client with a short-lived Authorization Code. The client’s backend then securely exchanges this Code, along with its secret API key, for an Access Token.
 
 This two-step process ensures the Access Token is never exposed to the user’s browser, preventing interception via cross-site scripting.”
+
+SDE System Design Questions (What More Can Be Asked)
+
+
+1. The Implicit Flow Flaw: “Why did we stop using the ‘Implicit Flow’ for frontend-only apps like React or Angular?”
+
+The SDE Answer:
+
+“In the old Implicit Flow, the Authorization Server returned the Access Token directly in the URL redirect hash (e.g., #access_token=...) without requiring a backend to exchange a code. This was highly insecure because the token was exposed in browser history, HTTP referer headers, and was vulnerable to XSS attacks. Today, we use the Authorization Code flow with PKCE (Proof Key for Code Exchange) to secure mobile and Single Page Applications.”
+
+
+Implicit Flow (Old - Insecure)
+
+Redirect back with
+Access Token in URL hash
+
+https://app.com/callback
+#access_token=ABC123...
+
+• Token exposed in browser history
+• Token exposed in HTTP referer headers
+• Vulnerable to XSS attacks
+
+
+2. Authentication vs Authorization: “Is OAuth 2.0 an authentication protocol?”
+
+The SDE Answer:
+
+“Technically, no. OAuth 2.0 is strictly an authorization protocol—it grants access to resources. However, it is heavily used for authentication by layering OpenID Connect (OIDC) on top of it. OIDC standardizes the OAuth flow to return a specific ID Token (a JWT) that contains the user’s identity data, bridging the gap between authorization and authentication.”
+
+
+OAuth 2.0 (Authorization)
+
+• Grants access to resources
+• Does not handle user identity
+• Used to access APIs
+  (e.g., Google Drive, GitHub)
+
+
+OpenID Connect (Authentication)
+
+• Built on top of OAuth 2.0
+• Returns an ID Token (JWT)
+  with user identity data
+• Used for authentication
+  (e.g., “Log in with Google”)
+
+
+3. The Refresh Token: “What happens when the Access Token expires in 1 hour?”
+
+The SDE Answer:
+
+“During the initial code exchange, the Auth Server usually returns both an Access Token and a long-lived Refresh Token. When the Access Token expires, the backend client silently sends the Refresh Token to the Auth Server to get a new Access Token, preventing the user from having to log in again. If the user revokes the app’s permission, the Refresh Token is invalidated.”
+
+
+Refresh Token Flow
+
+1. Send Refresh Token
+   (to get new Access Token)
+
+2. New Access Token
+   (returned)
+
+• Initial code exchange returns Access Token + Refresh Token
+• Use Refresh Token when Access Token expires
+• If user revokes access, Refresh Token is invalidated
+
+
+The Delegation Problem
+
+The Delegation Problem is the fundamental security challenge that OAuth was invented to solve.
+
+The Analogy:
+
+You park your car at a high-end restaurant and hand your keys to the valet. The valet needs your key to drive the car into the parking garage. However, because you gave them your master key, they also have the power to open your glovebox, steal your GPS, or drive the car to another state.
+
+In software, how do you give a third-party app (the valet) permission to do one specific task on your behalf without giving them your master password?
+
+This evolves into a famous security vulnerability known as the Confused Deputy Problem.
+
+
+The CS Reality (The Confused Deputy Problem)
+
+A “Deputy” is a computer program that has high-level permissions.
+
+The “Confused Deputy Problem” happens when a hacker tricks that highly privileged program into misusing its authority to do something the hacker isn’t allowed to do.
+
+Let’s look at an example in a microservices architecture:
+
+1. The Setup: You build a “Billing Service” that has root access to the database to generate invoices.
+
+2. The Attack: A hacker (User A) sends a request to the Billing Service saying, “Generate an invoice, and write the output file over User B’s private tax documents.”
+
+3. The Failure: The Billing Service blindly trusts the request. Because the Billing Service itself has root permission to modify User B’s files, it overwrites the file. The hacker didn’t have permission to modify User B’s files, but they tricked the “Deputy” (the Billing Service) into doing it for them.
+
+
+Confused Deputy Problem Example
+
+1. The Setup
+
+Billing Service
+(root access)
+        ↕
+Database
+(User files, invoices, etc.)
+
+
+2. The Attack
+
+Hacker
+(User A)
+
+Send request:
+
+“Generate an invoice,
+and write output file over
+User B’s private documents.”
+
+        ↓
+
+Billing Service
+(trusted)
+
+
+3. The Failure
+
+Billing Service overwrites
+User B’s file (using its own
+root permissions).
+
+        ↓
+
+User B’s private
+tax documents
+(overwritten)
