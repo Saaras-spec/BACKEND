@@ -118,3 +118,74 @@ The Solution
 You must extract the session storage out of the individual servers' RAM and put it into a centralized, lightning-fast,
 in-memory database like Redis. This way, whether the load balancer sends the user to Server 1, Server 2, or Server 5000,
 all servers check the same centralized Redis cache to validate the Session ID.
+
+
+
+THE PROS (Why Banks and Netflix use Sessions)
+
+Despite being an older technology, Session-based authentication is still the gold standard for
+high-security applications. Here is why:
+
+
+1. Instant Revocation (The “Kill Switch”)
+
+Imagine a user’s laptop is stolen while they are logged in, or they suspect their account
+was hacked. They log in on their phone and click “Sign out of all other devices.”
+Because sessions are stateful, your backend simply deletes their active Session IDs
+from Redis. The very next time the stolen laptop tries to make a request, the backend
+checks Redis, sees nothing, and immediately blocks access. You have absolute,
+millisecond-level control over who is logged in.
+
+
+2. Client-Side Data Privacy
+
+The only thing stored on the user’s computer is the Session ID (s_123xyz).
+The actual user data (their email, their role as “Admin”, their account balance)
+is stored safely in your backend memory. Even if a hacker physically steals the
+cookie from the browser, they cannot read the user’s private data out of it.
+
+
+3. Rolling Expirations (Sliding Sessions)
+
+If you want to keep a user logged in as long as they are active, sessions
+make this trivial. Every time the user makes a request, the backend can
+simply reset the Redis expiration timer back to 30 minutes.
+
+
+THE CONS (Why start-ups often avoid them)
+
+If sessions are so secure, why do so many modern apps avoid them? Because they introduce significant
+architectural friction.
+
+
+1. The Stateful Database Tax (Scalability)
+
+If your application scales to handle 10,000 requests per second,
+your Redis server now has to process 10,000 read operations
+per second just to figure out who the users are, before your
+backend even runs any business logic. You have introduced
+a permanent bottleneck. If your Redis cluster crashes,
+every single user is instantly logged out, and no one can
+use your app.
+
+
+2. The Cross-Domain Nightmare (CORS)
+
+Cookies are strictly bound to the domain that created them.
+
+• If your frontend is my-app.com and your backend is api.my-app.com,
+  you have to jump through massive configuration hoops (configuring
+  SameSite, Secure, and Access-Control-Allow-Credentials headers)
+  just to get the browser to attach the cookie correctly.
+
+• If you build a mobile app (iOS/Android), mobile environments do not
+  have a built-in browser cookie jar. Mobile developers have to write
+  custom code to manually extract the cookie and attach it to outgoing
+  requests, which they hate doing.
+
+
+3. CSRF Vulnerabilities (Cross-Site Request Forgery)
+
+Because browsers automatically attach cookies to any request going to your backend, hackers can build malicious websites
+that trick the user’s browser into sending a forged request (like transferring money) while they are logged in. You have to
+implement anti-CSRF tokens to protect against this, adding more complexity to your backend.
