@@ -1,0 +1,106 @@
+API Keys (For Machines and Projects)
+
+If a username and password identify a human user, an API Key identifies a machine or a project.
+An API Key is a long, randomly generated string of characters (e.g., sk_live_9x8f7A...) given
+to a developer. When you use Stripe to process payments or Twilio to send SMS messages, you don't "log in"
+to their servers with a username and password in your code. You pass them your API Key. It acts as a permanent
+VIP badge that tells their server exactly which company is making the request so they know who to bill.
+
+
+The CS Reality (How it works under the hood)
+
+Unlike a JWT (which carries a readable JSON payload inside it), an API key is
+an Opaque Token. It contains no readable data. It is purely a database pointer.
+
+
+1. Client Request
+
+A third-party server sends an HTTP request
+to your backend, attaching the key in
+the headers (e.g., x-api-key: 123xyz).
+
+
+2. API Gateway Interception
+
+Before the request hits
+your main Node.js logic,
+an API Gateway
+intercepts it.
+
+
+3. Database Lookup
+
+The Gateway queries a
+high-speed database
+(like Redis), searching
+for that specific string.
+It finds the key, identifies
+it belongs to "Company A",
+and checks if their billing
+account is active.
+
+
+4. Rate Limiting
+
+The Gateway checks the
+Token Bucket algorithm
+to ensure Company A
+hasn't exceeded their limit
+of 100 requests per second.
+If they pass, the request
+is forwarded to your
+application servers.
+
+
+The Code (Node.js & Express)
+
+Here is how product companies implement API key verification via middleware.
+
+
+// The API Key Verification Middleware
+const requireApiKey = async (req, res, next) => {
+    // 1. Extract the key from the custom HTTP header
+    const apiKey = req.header('x-api-key');
+
+    if (!apiKey) return res.status(401).json({ error: "Missing API Key" });
+
+    // 2. Validate against the database (usually Redis for speed)
+    const clientRecord = await database.findClientByApiKey(apiKey);
+
+    if (!clientRecord || !clientRecord.isActive) {
+        return res.status(403).json({ error: "Invalid or revoked API Key" });
+    }
+
+    // 3. Attach the client info so the route knows who to bill
+    req.apiClient = clientRecord;
+    next();
+};
+
+// Protect the route
+app.post('/api/v1/send-email', requireApiKey, (req, res) => {
+    res.json({ message: "Email sent", billedTo: req.apiClient.companyName });
+});
+
+
+Pros, Cons, and Use Cases
+
+Where we use it:
+Server-to-Server (M2M/B2B) communication,
+public developer APIs (Stripe, AWS, Google Maps),
+and internal microservices.
+
+Why we use it:
+To track infrastructure usage, enforce rate limits,
+and bill clients based on API consumption.
+
+Pros:
+Incredibly simple for developers to use.
+Extremely easy to instantly revoke from the server
+if a key is compromised.
+
+Cons:
+Stateful: Requires a database lookup on every single
+request, which adds latency.
+Insecure for Frontends: If embedded in a React app
+or iOS app, anyone can still use DevTools and
+see your quota.
