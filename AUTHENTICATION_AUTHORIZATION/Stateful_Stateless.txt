@@ -1,0 +1,40 @@
+1. Stateful Authentication (The Server Remembers)
+
+In a stateful architecture, the server is responsible for allocating memory (state)
+to track who is currently logged in.
+
+• How it works: When you log in, the server creates a unique Session ID and saves
+  it in a database or in-memory cache (like Redis). It gives the browser a copy
+  of this ID as a cookie. Every time the browser makes a request, the server must
+  look up that ID in its memory to figure out who you are.
+
+• The Advantage: Total Control. If you want to kick a user out immediately, you can
+  simply delete their row from the server's database. The next time they try to do
+  something, the server checks the database, finds nothing, and rejects them.
+  This makes it ideal for banking and high-security applications.
+
+• The Disadvantage: Hard to Scale. If your application gets 10,000 requests per second,
+  your database must perform 10,000 read operations per second just to verify sessions,
+  before executing any actual business logic.
+
+
+2. Stateless Authentication (The Server Forgets)
+
+In a stateless architecture, the server remembers absolutely nothing about the client
+between HTTP requests. The server does not store active sessions in a database.
+
+• How it works: When you log in, the server packages all your user data (like your
+  User ID and Role) into a JSON Web Token (JWT). It mathematically signs the token
+  using a secret key, hands it to you, and immediately forgets about you.
+  On future requests, you hand the token back. The server just does a quick mathematical
+  check on the signature to ensure the token wasn't tampered with, and lets you in.
+
+• The Advantage: Infinite Scalability. Because the server doesn't have to query a
+  database to verify who you are, it saves massive amounts of time and resources.
+  You can spin up 10,000 new servers, and each one of them can verify your token instantly
+  using math.
+
+• The Disadvantage: No Undo Button. Once the server hands out a token, it cannot
+  easily revoke it. If a hacker steals your token, they can use it until the token's built-in
+  expiration time runs out, because the server has no centralized database to check
+  for "cancelled" tokens.
