@@ -1,0 +1,107 @@
+OAUTH 2.0 (Open Authorization)
+
+Imagine you are staying at a hotel, and you want to order a pizza. The delivery driver arrives at the front desk, but the hotel won’t let them up to your room. You don’t want to give the driver your actual room key (that would be dangerous – they could steal your stuff!)
+Instead, you call the front desk and say, “Give the driver a temporary, restricted keycard that only works for the elevator and my floor, and make it expire in 15 minutes.”
+
+That is OAuth. It is a protocol that allows a user to grant a third-party application (the driver) temporary, restricted access to their data (the hotel room) without ever giving the application their actual password (the master key).
+Every time you click “Log in with Google” or allow a game to post to your Facebook timeline, you are using OAuth.
+
+
+The CS Reality (Roles in OAuth 2.0)
+
+OAuth 2.0 introduces four specific roles:
+
+1. Resource Owner: You (the user).
+
+2. Client: The third-party app you want to use
+   (e.g., a Spotify app trying to read your Google Contacts).
+
+3. Authorization Server: The bouncer
+   (e.g., Google’s login server).
+
+4. Resource Server: The database holding
+   your data (e.g., Google Contacts API).
+
+
+Authorization Code Flow (Step by Step)
+
+1. The Request
+
+The Client (Spotify) redirects your browser
+to the Authorization Server (Google). The URL
+includes what they want: scope=read_contacts
+and a client_id telling who they are.
+
+2. User Consent
+
+You log into Google directly. Google shows a
+screen: “Spotify wants to read your contacts.
+Allow?” You click “Yes”. Spotify never sees
+your password.
+
+3. The Authorization Code
+
+Google redirects your browser back to Spotify,
+attaching a temporary, single-use string called
+an Authorization Code to the URL.
+
+4. The Code Exchange (Backend-to-Backend)
+
+Spotify’s backend takes that Code and makes
+a hidden, secure server-to-server request to
+Google. It says, “Here is the user's Code, and
+here is my secret API key proving I am really Spotify.”
+
+5. The Access Token
+
+Google verifies the Code and Secret Key, and
+responds with an Access Token (usually a JWT).
+Spotify can now use this token to fetch your
+contacts from the Resource Server.
+
+
+Pros, Cons, and Use Cases
+
+Where we use it:
+
+“Log in with Google/Apple/Facebook”
+buttons (SSO), giving CI/CD pipelines
+access to GitHub repos, connecting
+bank accounts to budgeting apps
+like Plaid.
+
+Why we use it:
+
+Delegated Access. Users shouldn’t
+have to create a new password for
+every website, and they should never
+give their banking password to a third-party app.
+
+Pros:
+
+High security. The third-party app
+never sees the user's password.
+The user can revoke the app's
+access at any time from their
+Google dashboard.
+
+Cons:
+
+Extremely complex to implement
+correctly. It introduces multiple
+network hops (redirects) which
+can cause latency or break if not
+handled well on mobile apps.
+
+
+How to Answer in an Interview
+
+Q: What is OAuth 2.0, why do we use it, and how does the Authorization Code flow work?
+
+Your Answer:
+
+“OAuth 2.0 is an industry-standard authorization protocol that allows a user to grant a third-party application limited access to their resources without exposing their credentials. We use it to enable secure Single Sign-On (SSO) and delegated access.
+
+In the Authorization Code flow, the client app redirects the user to the Authorization Server. The user authenticates and consents, and the server redirects back to the client with a short-lived Authorization Code. The client’s backend then securely exchanges this Code, along with its secret API key, for an Access Token.
+
+This two-step process ensures the Access Token is never exposed to the user’s browser, preventing interception via cross-site scripting.”
