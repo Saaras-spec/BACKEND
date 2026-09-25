@@ -104,3 +104,60 @@ request, which adds latency.
 Insecure for Frontends: If embedded in a React app
 or iOS app, anyone can still use DevTools and
 see your quota.
+
+API KEY AUTHENTICATION & INTERVIEW QUESTIONS
+
+
+Q: What is API Key Authentication, and when should we use it over JWTs?
+
+Your Answer:
+
+“An API key is an opaque, static token used primarily for machine-to-machine authentication. It identifies the calling application or project rather than a specific end-user, making it ideal for metering usage, billing, and rate-limiting third-party developers. However, because API keys are long-lived and static, they should strictly be used in secure server-to-server flows. For frontend applications interacting with our backend, we should use short-lived, verifiable JWTs or Session cookies to prevent token theft.”
+
+
+When to Use API Key vs JWT
+
+Scenario                                      Use API Key        Use JWT
+
+Machine-to-Machine (Server-to-Server)         ✓
+Public Developer APIs (3rd party)             ✓
+Frontend Web/Mobile App (End users)                              ✓
+Identifying application/project               ✓
+Identifying specific end-user                                     ✓
+Billing / Rate Limiting                       ✓
+
+
+SDE System Design Questions (What More Can Be Asked)
+
+Product-based companies will immediately test your security awareness regarding API keys, because leaking one is a massive, expensive disaster.
+
+
+1. The Transmission Trap
+
+Q: Where should the client put the API key in their request?
+
+The Trap:
+
+Beginners often put it in the URL (e.g., GET /data?api_key=SECRET).
+
+The SDE Answer:
+
+“API keys must strictly be sent in HTTP Headers (like Authorization: Bearer or x-api-key). If sent in the URL query parameters, the plain-text key will be permanently written into the access logs of every intermediary router, load balancer, and proxy server (like Cloudflare or Nginx) on the internet, creating a massive security leak.”
+
+
+2. The Storage Problem
+
+Q: If our database is hacked, how do we ensure the hackers can’t use our customers’ API keys?
+
+The SDE Answer:
+
+“API keys must be treated exactly like passwords. Never store the plain-text key in our database, we only store a cryptographic hash (like SHA-256). Because we only have the hash, we must enforce a ‘Show Once’ UX – we show the raw key to the developer exactly one time upon creation. If they lose it, they must generate a new one.”
+
+
+3. The Rotation Problem
+
+Q: A developer accidentally pushed their API key to a public GitHub repo. How do we rotate their key without crashing their production servers that are currently using it?
+
+The SDE Answer:
+
+“We implement a Zero-Downtime Rotation protocol. We do not instantly delete the compromised
