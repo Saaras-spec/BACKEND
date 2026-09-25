@@ -1,0 +1,232 @@
+JWT (JSON Web Token) Authentication
+
+If a Session ID is a VIP list at the door (the bouncer has to check the list in the database every time you enter), a JWT (JSON Web Token) is a cryptographically signed passport.
+When you log in, the server gives you a passport. The server does not write your name down in a database. It doesn't remember you at all.
+When you come back tomorrow, you hand the server your passport. The server checks the cryptographic signature on the passport,
+says, “Yep, my secret stamp is on this.” and lets you in.
+Because the server doesn't have to look you up in a database (like Redis), this is called Stateless Authentication.
+
+
+The CS Reality (How a JWT is built)
+
+A JWT is just a long text string separated by two dots: Header.Payload.Signature.
+
+1. Header: Tells the server what algorithm was used to sign the token (usually HS256).
+
+2. Payload: The actual JSON data you want to store (e.g., {"userId": 101, "role": "admin"}).
+   Crucial rule: This data is Base64+ encoded, not encrypted. Anyone in the world can decode
+   it and read your payload. Never put passwords here.
+
+3. Signature: This is the magic. The server takes the Header, the Payload, and a Secret Key
+   (that only the backend knows) and runs them through a hashing algorithm. If a hacker
+   tries to change their role in the payload from "user" to "admin", the signature will instantly
+   become invalid.
+
+
+Structure of a JWT
+
+Header
+(Base64 encoded)
+{
+  "alg": "HS256"
+}
+
+Payload
+(Base64 encoded)
+{
+  "userId": 101,
+  "role": "admin"
+}
+
+Signature
+HMAC/Hash
+(using Secret Key)
+
+
+1. The Token Storage Debate: LocalStorage vs. HttpOnly Cookies
+
+The Question: “Where should the client store a JWT: in localStorage or an HttpOnly cookie? Defend your choice.”
+
+What they are testing: Your understanding of browser security models, Cross-Site Scripting (XSS), and Cross-Site Request Forgery (CSRF).
+
+How to Answer:
+
+• Verdict: “Storing JWTs in an HttpOnly, Secure, SameSite=Strict cookie is far safer than localStorage.”
+
+• The Technical Trade-off:
+  - LocalStorage: Accessible via browser JavaScript (window.localStorage). If your application has a single XSS vulnerability
+    (e.g., from an untrusted third-party npm package or unsanitized input), an attacker can execute a script to steal the JWT
+    directly and exfiltrate it to an external server.
+  - HttpOnly Cookie: This forbids client-side JavaScript from reading the cookie entirely, neutralizing token theft via XSS.
+  - The Caveat: Using cookies opens up CSRF vulnerabilities, but CSRF can be defended against using modern SameSite=Lax/Strict
+    attributes and Anti-CSRF double-submit cookies. Theoretically, storing the token as a cookie means no client-side defense if
+    malicious script execution occurs.
+
+
+Storage Comparison
+
+LocalStorage
+• Accessible via JavaScript
+• Vulnerable to XSS
+• Easy for attacker to steal JWT
+
+HttpOnly Cookie
+• Not accessible via JavaScript
+• Protects against XSS
+• Vulnerable to CSRF
+• Use Secure, SameSite=Strict
+
+
+2. Symmetric (HS256) vs. Asymmetric (RS256) in Microservices
+
+The Question: “In a microservices architecture with 10 different internal services, should we sign JWTs using HS256 or RS256?”
+
+What they are testing: Public-key cryptography and whether you understand key distribution risks across services.
+
+How to Answer:
+
+• Verdict: “You should use an asymmetric algorithm like RS256 (RSA Signature with SHA-256) or ES256 (ECDSA).”
+
+• The Technical Justification:
+  - HS256 (Symmetric): Uses a single shared secret key for both signing and verifying the token. To verify user tokens, every
+    single one of your 10 microservices must possess this secret key. If a developer misconfigures or leaks the secret in service #10,
+    an attacker can now forge tokens for the entire ecosystem.
+  - RS256 (Asymmetric): Uses a Private/Public key pair. The central Authentication Service keeps the Private Key hidden and is
+    the only service capable of minting tokens. All other microservices are given the Public Key. They can mathematically verify that
+    incoming tokens are legitimate without ever having the ability to forge new ones.
+
+
+Key Distribution
+
+HS256 (Symmetric)
+
+Same Secret Key
+
+Service 1 ... Service 10
+
+• All services have the secret key
+• If leaked, attacker can forge tokens
+
+
+RS256 (Asymmetric)
+
+Auth Service
+
+Private Key
+        ↓
+Service 1 ... Service 10
+
+Public Key
+
+• Only Auth Service has private key
+• Other services verify using public key
+
+
+3. The "alg: none" Vulnerability
+
+The Question: “Explain the classic alg: 'none' attack on JWT verification libraries.”
+
+What they are testing: Your knowledge of implementation flaws and defensive coding in authentication libraries.
+
+How to Answer:
+
+• The Exploit: The JWT specification technically permits an algorithm value of none (used for unsecured tokens when signing
+  is skipped). Early versions of several JWT libraries blindly trusted the alg header specified in the incoming token. An attacker
+  could take a valid token, change their payload to {"role": "admin"}, set the header to {"alg": "none"}, remove the signature
+  completely, and send the request. Vulnerable libraries would see alg: none and validate the token as legitimate without
+  checking any signature.
+
+• The Prevention: “Modern implementations must strictly enforce expected algorithms on the server. The verification function
+  should never trust the algorithm claimed in the token header; instead, the backend should specify an explicit whitelist.”
+
+
+4. Immediate Token Revocation & The Blacklist Pattern
+
+The Question: “A user changes their password or reports their account hacked. Since JWTs are stateless and cannot be edited by the server,
+how do you immediately invalidate active tokens?”
+
+What they are testing: Your ability to handle the biggest architectural trade-off of stateless auth without defeating the purpose of using JWTs.
+
+How to Answer:
+
+• The Approaches:
+  1. Redis Blacklist (Token Denylist): When a user logs out or resets a password, the server extracts the token's unique identifier (jti - JWT ID)
+     and its remaining time-to-live (ttl), storing it in a fast Redis cache. On subsequent requests, the server checks if the incoming jti
+     exists in the blacklist. The key automatically evicts from Redis once the token naturally expires.
+
+  2. token_version / Timestamp check: The user's database record contains a password_changed_at timestamp or an integer token_version.
+     The JWT payload carries an iat (issued-at) timestamp or token_version. If iat < password_changed_at, the token is rejected.
+
+• The Trade-off: “A Redis blacklist reintroduces a cache lookup on every request, partially eroding the stateless advantage of JWTs. Therefore,
+  keeping JWT lifespans very short (5-15 minutes) is the first line of defense to limit the blast radius of unrevoked tokens.”
+
+
+Blacklist Approach
+
+Extract jti
+from token
+        ↓
+Store jti in Redis
+(with TTL)
+        ↓
+Check jti on
+every request
+
+
+token_version Approach
+
+Compare iat / token_version
+with user's record
+
+• If iat < password_changed_at
+  → reject token
+
+
+5. Refresh Token Rotation & Reuse Detection
+
+The Question: “How does Refresh Token rotation work, and how does it detect token theft?”
+
+What they are testing: Industry-standard OAuth 2.0 / secure session rotation flows.
+
+How to Answer:
+
+• The Mechanics:
+  1. When an Access Token (15-min lifespan) expires, the client sends its single-use Refresh Token (stored securely) to the /auth/refresh endpoint.
+  2. The server invalidates that specific Refresh Token, issues a new Access Token, and issues a new Refresh Token back to the client.
+  3. Reuse Detection: If an attacker intercepts a Refresh Token and uses it before the legitimate user does, the server recognizes that an already-invalidated Refresh Token was submitted. This triggers an immediate security alert: the server assumes the token family is compromised and automatically invalidates all active tokens (both the attacker's and the user's), forcing a re-authentication via password.
+
+
+Refresh Token Rotation
+
+1. Client sends
+   Refresh Token
+   (single-use)
+        ↓
+2. Server invalidates
+   old Refresh Token
+   and issues new
+   Access + Refresh Token
+
+
+Reuse Detection
+
+If old token is reused:
+→ invalidate entire token family
+→ force re-authentication
+
+
+6. Network Overhead & Payload Bloat
+
+The Question: “Why wouldn't we just pack all user permissions, user profile data, and organization settings into the JWT payload so the backend never has to query the database?”
+
+What they are testing: Understanding the network transport layer (HTTP headers) and performance bottlenecks.
+
+How to Answer:
+
+• The Constraint: JWTs are transmitted on every single HTTP request—usually within the Authorization: Bearer <token> header or as a Cookie.
+  Because the payload is Base64URL-encoded (which increases raw data size by roughly 33%), bloating the payload creates massive network overhead.
+  For instance, a 4KB JWT on an application handling 10,000 requests per second consumes 40MB/s of extra network bandwidth just in headers.
+  Furthermore, many web servers (like Nginx, Apache) have a default maximum header size limit (typically 8KB to 16KB); exceeding this will cause
+  requests to fail with a 431 Request Header Fields Too Large error.
+
+• Best Practice: “Keep JWT payloads minimal: only store the subject identifier (sub), essential role/scope claims, and standard expiry timestamps (exp, iat).
