@@ -1,0 +1,154 @@
+4. The Repository Layer (Atomic Database Calls)
+
+The Concept
+
+You asked, "Does one repository method do only a single thing? And why? And can the service layer combine results of different repo methods?"
+
+Yes, exactly. A repository method should be atomic (it does one specific database query, like findUserById() or insertInvoice()). Why? Because of composition. If you write a massive repository method called findUserAndUpdateBalanceAndInsertInvoice(), you can never use those queries individually. By keeping repository methods small and atomic, the Service Layer acts as an organizer.
+
+More about Service Layer
+
+You asked earlier if the Service layer can combine results from different repositories. Yes, but there is a deeply technical reason why this happens in the Service Layer and not the Repository Layer: The Database Transaction.
+
+Imagine a transferFunds Service method:
+1. AccountRepo.deductMoney(userA, 100)
+2. AccountRepo.addMoney(userB, 100)
+
+What happens if the server crashes exactly between step 1 and step 2?
+User A lost $100, but User B never got it. The money disappeared into the void.
+
+To fix this, the Service Layer acts as a Transaction Boundary. It tells the database to open a specific, isolated connection (a Transaction). It runs all the repo methods. If any repo method throws an error, the Service Layer catches it and tells the database to ROLLBACK (undoing everything). If they all succeed, it tells the database to COMMIT.
+
+Because a business workflow often spans multiple tables, the Service layer must be the one orchestrating the repositories to maintain ACID guarantees.
+
+
+Why do we isolate database calls in the Repository?
+
+To solve a famous Computer Science problem called the Object-Relational Impedance Mismatch.
+
+Your Service Layer (Memory)
+• Thinks in terms of "Objects" or "Classes".
+• An Object can contain lists of other Objects (e.g., a User object containing an array of Post objects).
+
+Your SQL Database (Disk)
+• Thinks in terms of flat "Tables" and "Rows".
+• A row cannot contain an array.
+• It uses Foreign Keys and JOINs.
+
+These are two fundamentally incompatible data structures.
+
+The Repository's job is to bridge this gap. When the Service asks Repo.getUserWithPosts(101), the Service expects a nested JavaScript Object. The Repository is the layer that writes the ugly SQL JOIN statement, takes the flat rows returned by the hard drive, loops through them in memory, and builds the nested Object structure the Service expects.
+
+If you switch from PostgreSQL to MongoDB, you only rewrite the Repository layer. The Service layer never notices, because the Repository still hands it the exact same Javascript Object.
+
+
+Service Layer vs Repository Layer: Who Controls Commit and Rollback
+
+The core idea
+• Repository layer makes the changes in the database (runs the SQL).
+• Service layer decides whether those changes become permanent (COMMIT) or get undone (ROLLBACK).
+• A change made by the repo is tentative until the Service layer gives permission to commit.
+
+Who does what
+
+Layer          Job                                      Example
+
+Repository     Runs ONE database operation             deductMoney(A, 100), addMoney(B, 100)
+
+Service        Decides which repo methods to call, in   transferFunds()
+               what order, and whether to commit or roll back
+
+Database       Holds changes as tentative inside the    Applies COMMIT / ROLLBACK
+               transaction, then makes them permanent
+               or discards them
+
+
+Step-by-step flow (transferFunds)
+
+1. Service: BEGIN (opens the transaction, the "all-or-nothing wrapper")
+
+2. Repo: deductMoney(A, 100) runs. The database applies it, but it is tentative (not permanent).
+
+3. Repo: addMoney(B, 100) runs. Also tentative.
+
+4. Service decides:
+   • Both succeeded → COMMIT → both changes become permanent together.
+   • Any error or crash → ROLLBACK → both changes are discarded.
+
+
+Key points to remember
+
+• The repo does send the change to the database, but it cannot decide whether the change sticks.
+• The repo only knows its own single step. It does not know if it is part of a bigger workflow.
+• Only the Service knows where the business operation starts and ends, so only the Service can say when to commit.
+• The transaction is not a repo method. It is a database feature, controlled by the Service layer.
+• Result: all-or-nothing (this is "atomicity" in ACID).
+
+
+What happens on failure
+
+• Error in code (e.g., B's account doesn't exist): Service catches it and tells the database ROLLBACK.
+• Server crash (between step 2 and 3): the database notices the transaction never reached COMMIT and automatically rolls back.
+
+• In both cases: A is still 500, B is still 500, nothing is lost.
+
+
+Without a transaction (the problem)
+
+• deductMoney(A) is saved permanently.
+• Server crashes.
+• addMoney(B) never runs.
+• Result: A lost 100, B got nothing. Money disappeared.
+
+
+Analogy
+
+• Repository = the cook (does one task: grill the steak, make the sauce).
+• Service = the head chef (sends the plate out only when both are done; if the sauce burns, throws away the whole plate).
+
+
+When you do NOT need a transaction
+
+A single independent operation, like showBalance():
+• It is one repo call, so there is no half-done state.
+• It doesn't depend on any other operation.
+• Rule: use a transaction only when several changes must succeed or fail together.
+
+
+Diagram
+
+transferFunds (needs transaction)
+
+Controller
+    |
+    v
+Service: transferFunds()
+    |
+    v
+BEGIN
+    |
+    +-- Repo: deductMoney(A)
+    |
+    +-- Repo: addMoney(B)
+    |
+    v
+COMMIT (or ROLLBACK on failure)
+
+showBalance (no transaction needed)
+
+Controller → Service → Repo: getBalance(A) → Database
+                                              |
+                                              v
+                                         returns balance
+
+
+"All or None" rule is called Atomicity
+
+"All or None" rule is called Atomicity. It is the "A" in ACID (the four golden rules of relational databases: Atomicity, Consistency, Isolation, Durability).
+
+How does a database physically do this?
+
+When the Service layer sends the BEGIN command, the database engine (like PostgreSQL) creates a hidden file on the hard drive called the Undo Log. As your Repository layer makes changes (deducting money, changing names), the database writes the opposite of those changes into the Undo Log.
+
+• If the Service layer says COMMIT, the database deletes the Undo Log. The changes are permanent.
+• If the Service layer says ROLLBACK (or if the server crashes), the database instantly replays the Undo Log, putting it back where it was, mathematically reversing every single change in milliseconds.
