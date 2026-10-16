@@ -1,0 +1,201 @@
+3-Tier Layered Architecture (Controller-Service-Repository Pattern)
+
+It splits the backend into three strict jobs based on the
+principle of Separation of Concerns.
+
+1. The Controller Layer (The Waiter):
+   Only cares about HTTP. It takes the order (Request) from the
+   user and hands back the food (Response).
+
+2. The Service Layer (The Chef):
+   Only cares about Business Logic. It does the math, applies
+   discounts, and checks business rules. It knows nothing about
+   HTTP status codes.
+
+3. The Repository / Data Access Layer (The Pantry):
+   Only cares about the Database. It writes the SQL or MongoDB
+   queries. It knows nothing about business logic or HTTP.
+
+
+Request Flow Through Layers
+
+Client (Browser / Postman)
+        |
+        | HTTP Request (GET / POST / ...)
+        v
+Controller (Waiter)
+        |
+        | Calls Service
+        v
+Service (Chef)
+        |
+        | Calls Repository
+        v
+Repository (Pantry)
+        |
+        | SQL / MongoDB Queries
+        v
+Database (MongoDB / PostgreSQL)
+
+HTTP Response (JSON + Status Code) returns to the client.
+
+
+The CS Reality (Why We Do This)
+
+By isolating these layers, the system becomes highly testable and scalable.
+If you want to switch your database from MongoDB to PostgreSQL, you
+only rewrite the Repository layer. The Service and Controller layers don't
+even know the database changed! If you want to test the discount logic,
+you can test the Service layer directly without faking an HTTP request.
+
+
+Example Flow: Create Order
+
+Controller (Waiter)
+1. Receives POST /orders with order data.
+2. Calls orderService.
+3. Returns JSON response.
+
+Service (Chef)
+1. Validates business rules.
+2. Calculates total, applies discount.
+3. Calls orderRepository.
+4. Returns result to controller.
+
+Repository (Pantry)
+1. Runs SQL/MongoDB query (e.g., insert order).
+2. Returns data to service.
+
+
+The Golden Rule of Backend Engineering
+
+Never trust the client. It does not matter if your React or Angular frontend has perfectly coded form validations. A hacker can completely bypass your frontend by opening Postman or their terminal and sending a malicious HTTP request directly to your backend API. If your backend doesn't validate the data itself, your database will crash, or worse, get hacked.
+
+
+The CS Reality (The 3 Stages of Validation)
+
+In a robust backend system, data validation happens in a strict pipeline
+before it ever touches the business logic or database.
+
+1. Type & Format Validation (Schema)
+
+   Is this a string? Is the email formatted like an email?
+   Is the age a number? (This stops garbage data).
+
+
+2. Sanitization
+
+   If they send HTML or SQL commands in the text field,
+   strip those dangerous characters out. (This stops
+   Cross-Site Scripting (XSS) and SQL Injection).
+
+
+3. Business Logic Validation
+
+   The email is valid text, but does it already exist in our database?
+   Is the user over 18 years old? (This enforces product rules).
+
+
+Example: How Validation Works in an API
+
+Incoming Request
+
+POST /register
+
+{
+    "email": "test@example.com",
+    "username": "<script>alert('Hacked!')</script>",
+    "age": "twenty"
+}
+
+
+1. Schema Validation (Type & Format)
+
+   • Check email format.
+   • Check age is a number.
+   • If invalid -> return 400 Bad Request.
+
+
+2. Sanitization
+
+   • Strip/escape HTML tags and dangerous characters.
+   • Convert <script>alert('Hacked!')</script> to safe text.
+
+
+3. Business Logic Validation
+
+   • Check if email already exists in database.
+   • Check if user is over 18.
+   • If any rule fails -> return 400 Bad Request.
+
+
+If all validations pass -> Call Service layer -> Save to Database.
+
+
+Example Code (Node.js + Express + Joi)
+
+// Validation schema using Joi
+const Joi = require('joi');
+
+const registerSchema = Joi.object({
+    email: Joi.string().email().required(),
+    username: Joi.string()
+        .min(3)
+        .max(50)
+        .pattern(/^[a-zA-Z0-9_ ]+$/)
+        .required(),
+    age: Joi.number().min(18).required()
+}).options({
+    stripUnknown: true // removes
+    // fields like "role" that are
+    // not defined in schema
+});
+
+app.post('/register', async (req, res) => {
+    const { error, value } = registerSchema.validate(req.body);
+
+    if (error) {
+        return res.status(400).json({
+            error: "Invalid input",
+            details: error.details
+        });
+    }
+
+    // value is now sanitized and validated
+    // Proceed to service layer
+});
+
+
+How to Answer in an Interview
+
+Q: "Why do we need backend validation if we already have form validation on our frontend?"
+
+Your Answer:
+
+"Frontend validation exists purely for user experience (UX) — to give the user immediate, helpful feedback before they click submit. However, it provides zero actual security because any user can bypass the frontend client and send malicious payloads directly to the backend API via tools like cURL or Postman.
+
+Therefore, backend validation is mandatory. We must treat all incoming data as untrusted. On the backend, I implement strict schema validation using libraries like Zod or Joi at the middleware layer. This ensures that any malformed data, unexpected types, or malicious scripts are caught and rejected with a 400 Bad Request before they ever reach our core business logic or database."
+
+
+What More Can Be Asked? (SDE System Design Follow-ups)
+
+Once you give the standard answer, senior interviewers will push you with these
+exact scenario questions:
+
+
+1. The Injection Trap
+
+Q: "What happens if a user submits <script>alert('Hacked!')</script> as their username, and the schema just says Joi.string()?"
+
+The SDE Answer:
+
+"If the schema only checks for a string type, that script will pass validation and be saved in the database. When the frontend later requests that user's profile and renders the username, the browser will execute that script. This is called Stored XSS (Cross-Site Scripting). To prevent this, backend validation pipelines must also include sanitization, which strips out or escapes HTML tags before saving the string to the database."
+
+
+2. Over-Posting (Mass Assignment)
+
+Q: "A user sends a POST request to update their profile, but they secretly add 'role': 'admin' to the JSON body. How do you stop this?"
+
+The SDE Answer:
+
+"If the backend blindly accepts the incoming JSON and merges it into the database, this leads to a Mass Assignment vulnerability. I prevent this by configuring my validation schema (like Zod or Joi) to strictly strip unknown fields. Even if the hacker sends the 'role' field, the validator will quietly delete it from the payload because it wasn't explicitly defined in the allowed update schema."
