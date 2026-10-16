@@ -1,0 +1,157 @@
+Type, Syntactic and Semantic Validation
+
+1. Type Validation (The Bouncer)
+
+"Did you give me the right kind of ID?"
+
+If the form asks for your age, did you send an integer (22),
+or did you send a string ("twenty") or a boolean (true)?
+
+
+2. Syntactic Validation (The Scanner)
+
+"Is the ID formatted correctly?"
+
+Okay, you sent an integer, but is it a valid number (e.g.,
+between 1 and 120)? If you sent an email string, does it
+actually have an @ symbol and a .com?
+
+
+3. Semantic Validation (The Manager)
+
+"Does this ID mean something in the real world?"
+
+Okay, the email is perfectly formatted. But does that email
+already exist in our database? You want to book a hotel
+from Jan 5th to Jan 3rd? That's correctly formatted as dates,
+but it makes zero logical sense because the end date is
+before the start date.
+
+
+Examples of Each Validation Type
+
+Validation Type: Type Validation
+Example: age must be an integer
+Valid Input: 22 (integer)
+Invalid Input: "twenty" (string), true (boolean)
+
+Validation Type: Syntactic Validation
+Example: email must have @ and .com
+Valid Input: user@example.com
+Invalid Input: userexample.com, user@com
+
+Validation Type: Syntactic Validation
+Example: age must be between 1 and 120
+Valid Input: 25
+Invalid Input: -5, 200
+
+Validation Type: Semantic Validation
+Example: email must not already exist in database
+Valid Input: newuser@example.com (if not in DB)
+Invalid Input: existing@example.com (already exists)
+
+Validation Type: Semantic Validation
+Example: end date must be after start date
+Valid Input:
+Check-in: Jan 5
+Check-out: Jan 10
+
+Invalid Input:
+Check-in: Jan 5
+Check-out: Jan 3
+
+
+The CS Reality (CPU vs. Database Cost)
+
+Understanding the difference between these three is crucial for
+system performance.
+
+• Type and Syntactic Validation are cheap. They happen entirely
+  in the CPU memory in less than a millisecond using Regex and
+  type-checking. We do this at the very edge of the server
+  (in the Controller or Middleware).
+
+• Semantic Validation is expensive. It usually requires network
+  I/O, hitting a database, or calling third-party APIs. We never
+  run semantic validation unless the data has already passed
+  the first two checks.
+
+
+Where Each Validation Happens in the Architecture
+
+Client (Frontend)
+       |
+       | HTTP Request (with data)
+       v
+Controller (Middleware)
+(Validation Layer)
+       |
+       | Type Validation
+       | Syntactic Validation
+       v
+Service Layer (Business Logic)
+       |
+       | Semantic Validation
+       | (Database lookups, business rules)
+       v
+Repository (Data Access)
+       |
+       | Executes queries
+       | (Only if data passed validation)
+
+
+How to Answer in an Interview
+
+Q: Explain the difference between syntactic and semantic validation,
+and where they should happen in your architecture.
+
+Your Answer:
+
+"Syntactic validation checks if the data has the correct structure
+and format, such as ensuring a string matches an email regex or
+a password meets length requirements. Semantic validation checks
+if the data makes logical sense within the business context, such as
+verifying an email isn't already registered or checking if a user has
+sufficient account balance.
+
+Architecturally, syntactic validation should happen immediately at
+the edge of the API (in the controller or middleware) to 'fail fast'
+and save CPU cycles. Semantic validation should happen deeper in
+the Service layer, because it often requires expensive database
+queries or cross-field business logic that should only run if the
+syntax is already confirmed to be perfect."
+
+
+What More Can Be Asked? (SDE System Design Follow-ups)
+
+1. The Performance Trap
+
+Q: "Why don't we just validate everything in the Service layer
+when we save to the database?"
+
+The SDE Answer:
+
+"That creates a Denial of Service (DoS) vulnerability. If we don't
+perform cheap syntactic validation at the routing layer, a hacker can
+send millions of requests with malformed data. If we let that garbage
+data hit our Service layer and trigger database lookups (semantic
+validation), we will exhaust our database connection pool and crash
+the entire application. We must 'fail fast' to protect the database."
+
+
+2. The Concurrency Trap
+
+Q: "You semantically validate that a user has $100 in their account,
+and then you deduct $100 to buy an item. Is this safe?"
+
+The SDE Answer:
+
+"No, that introduces a Race Condition (Time-of-Check to Time-of-Use
+flaw). If the user sends two purchase requests at the exact same
+millisecond, both requests might pass the semantic validation
+(balance >= 100) before the database actually deducts the money,
+resulting in a negative balance.
+
+Semantic validation involving database state must be secured using
+Database Transactions, Row-Level Locks (SELECT ... FOR UPDATE),
+or atomic update operations."
