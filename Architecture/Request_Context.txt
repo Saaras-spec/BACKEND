@@ -184,3 +184,165 @@ All microservices use the same x-correlation-id for distributed logging, so our 
 - This helps in distributed logging and debugging.
 
 
+Advanced Interview Questions on Request Context (Node.js)
+
+1. The Context Loss Trap (Deep Node.js)
+
+The Interviewer asks:
+"You mentioned AsyncLocalStorage creates an invisible bubble around the request you love. Have you ever experienced a situation where you try to call requestContext.getStore() deep in your service layer, and it suddenly returns undefined? Why does that happen?"
+
+The SDE Answer:
+"Yes, this is known as 'Context Loss'. AsyncLocalStorage relies on Node.js's underlying async_hooks API to track the execution thread across asynchronous boundaries (like Promises and setTimeout). However, the context bubble can break if you bridge across certain event emitters, traditional callbacks without properly binding them, or if you use connection pools that queue tasks externally. If a task is handed off to a thread pool or a third-party library that doesn't properly propagate the async resources, the link breaks. To fix it, we have to explicitly bind the context using AsyncResource.bind() before passing the callback into the black-box library."
+
+
+2. The Security & Spoofing Trap
+
+The Interviewer asks:
+"You said you extract the Trace ID or Correlation ID from the incoming HTTP request headers (e.g., x-correlation-id) to track the request. What if a malicious user intentionally sends a fake or conflicting x-correlation-id in their browser request? Doesn't that corrupt our logs?"
+
+The SDE Answer:
+"If we blindly trust external client headers, yes, it corrupts our tracing data. To secure the context, our API Gateway (or the very first Edge Middleware) must act as the source of truth. The rule is: we completely strip and ignore any x-correlation-id sent from the public internet. The Edge Gateway will securely generate a fresh UUID and inject it into the header. From that point on, our internal microservices will trust the header because it was generated safely inside our private network."
+
+
+3. The Performance Overhead Trap
+
+The Interviewer asks:
+"Is there any downside to using AsyncLocalStorage? Why wouldn't we just pass the traceId down through the function parameters (prop drilling), even if it makes the code a bit uglier?"
+
+The SDE Answer:
+"The trade-off is CPU performance versus Developer Experience. AsyncLocalStorage hooks into Node's V8 engine to track every single async operation. This introduces a slight CPU and memory overhead. For 99% of enterprise applications, this overhead is practically invisible, and the benefit of having clean, decoupled code without prop-drilling is entirely worth it. However, if we were building an ultra-low-latency system — like a high-frequency trading platform where every microsecond counts — we would avoid AsyncLocalStorage and revert to strict prop-drilling to maximize V8 engine performance."
+
+
+4. The Microservice Log Aggregation Trap
+
+The Interviewer asks:
+"Okay, you successfully attached the traceId to the Request Context, and you used it in your console.log() statements. But we have 50 different microservices running on 50 different servers. How do you actually use this ID to debug a problem?"
+
+The SDE Answer:
+"Printing the Trace ID to the local server console isn't enough in a distributed system. First, when our Service Layer makes an HTTP call to a downstream microservice, we must ensure our HTTP client (like Axios) reads the traceId from the AsyncLocalStorage context and injects it into the outbound HTTP headers. Second, instead of just printing to the console, our logs must be shipped asynchronously to a centralized Log Aggregation platform like Datadog, ELK stack (Elasticsearch, Logstash, Kibana), or Splunk. When an error occurs, we can paste that single Trace ID into Kibana and instantly pull up a chronological timeline of every log from every single microservice that handled that specific user's request."
+
+
+Where Context Loss Can Happen
+
+Request
+(enters AsyncLocalStorage context)
+    |
+    v
+Async Operations
+(Promises, setTimeout, etc.)
+    |
+    v
+Event Emitters /
+Traditional Callbacks /
+Third-party libraries
+    |
+    v
+Deep Service Layer
+requestContext.getStore()
+→ undefined
+
+Context is preserved through supported async operations.
+
+Context can break (context loss).
+
+
+Fix using AsyncResource.bind()
+
+const { AsyncResource } = require('async_hooks');
+const asyncResource = new AsyncResource('MY_TASK');
+
+someLibrary.on('event', asyncResource.bind(() => {
+    // This callback will now have the correct context
+    const ctx = requestContext.getStore();
+    // ctx is available here
+}));
+
+AsyncResource.bind() explicitly binds the current async context to the callback before passing it to the black-box library.
+
+
+Preventing Spoofed Trace IDs
+
+Client (Browser)
+    |
+    | Sends fake x-correlation-id
+    | abc-123 (malicious)
+    v
+API Gateway / Edge Middleware
+    |
+    | Strips the incoming x-correlation-id
+    | Generates a new UUID (source of truth)
+    v
+Microservice A
+    |
+    v
+Microservice B
+
+Example (Edge Middleware)
+
+// Ignore client header and generate a new trace ID
+const traceId = crypto.randomUUID();
+req.headers['x-correlation-id'] = traceId;
+next();
+
+We do not trust x-correlation-id from the public internet. The API Gateway generates a fresh UUID and injects it.
+
+
+AsyncLocalStorage vs Prop Drilling
+
+AsyncLocalStorage:
+- Slight CPU and memory overhead (tracks every async operation)
+- Clean, decoupled code (no prop-drilling)
+- Easy to access context in any deep layer
+- Suitable for 99% of enterprise applications
+- Uses Node's async_hooks and V8 to track context
+
+Prop Drilling (Function Parameters):
+- No additional runtime overhead
+- Requires passing traceId through every function (ugly code)
+- Tight coupling between layers
+- More boilerplate code
+- Preferred only for ultra-low-latency systems (e.g., high-frequency trading) where every microsecond counts
+
+
+1. Propagate Trace ID in Outgoing Requests
+
+const axios = require('axios');
+const { getRequestContext } = require('../context');
+
+async function callUserService() {
+    const ctx = getRequestContext();
+
+    return axios.get('http://user-service/api/user', {
+        headers: {
+            'x-correlation-id': ctx.requestId
+        }
+    });
+}
+
+Read the traceId from AsyncLocalStorage and inject it into the x-correlation-id header for downstream microservice calls.
+
+
+2. Centralized Log Aggregation
+
+Microservice A
+(Logs with traceId)
+    |
+    v
+Microservice B
+(Logs with traceId)
+    |
+    v
+Microservice C
+(Logs with traceId)
+    |
+    v
+Log Aggregation
+(Datadog / ELK / Splunk)
+    |
+    v
+Search by Trace ID
+(in Kibana / Datadog)
+
+All logs from all services are indexed together.
+
+Get a chronological timeline of the request across all services.
