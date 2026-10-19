@@ -1,0 +1,186 @@
+Request Context in Backend Applications
+
+1. What Is Request Context?
+
+Request context is the collection of information and state associated with a particular HTTP request while the backend processes it.
+
+For example, imagine you're building a website where users can log in, view their profiles, and purchase products.
+
+When a user requests their profile, the backend might need to know:
+- Who is making the request?
+- Which URL are they accessing?
+- Which HTTP method are they using?
+- What data did they send?
+- What authentication token did they provide?
+- What is their request ID?
+- Which database operation should be performed?
+
+The backend needs this information to process the request correctly.
+
+
+2. Example
+
+Suppose your frontend sends this request:
+
+GET /api/profile
+Authorization: Bearer abc123
+X-Request-ID: req-789
+
+The backend receives a request containing information such as:
+
+{
+    method: "GET",
+    path: "/api/profile",
+    headers: {
+        authorization: "Bearer abc123",
+        "x-request-id": "req-789"
+    },
+    user: null
+}
+
+Initially, the backend might not know which user owns the token.
+After authentication middleware verifies the token, it can associate the authenticated user with the request.
+
+The resulting request-associated information might look conceptually like this:
+
+{
+    method: "GET",
+    path: "/api/profile",
+    requestId: "req-789",
+    user: {
+        id: 101,
+        role: "user"
+    }
+}
+
+This is a simplified illustration, not a standardized request-context object. Different frameworks implement request context differently.
+
+Important: Request context is not the same as the HTTP request itself. The HTTP request contains the information sent by the client, while request context can also include information created by the backend during processing.
+
+
+3. What is a Request Context, and how do you implement it in a Node.js backend to trace a request across multiple microservices?
+
+Your Answer:
+
+"A Request Context is the state or metadata scoped to the lifecycle of a single incoming HTTP request. It typically contains information like the authenticated User ID and a unique Correlation ID.
+
+In standard Express applications, we build this context using middleware by mutating the req object (e.g., req.user = decodedToken). However, to avoid 'prop drilling' this context down into the Service and Repository layers, I prefer using Node's AsyncLocalStorage. By wrapping the request in an AsyncLocalStorage.run() block at the middleware level, any deep internal service can retrieve the trace ID statelessly. To trace this across multiple microservices, I would ensure that the outgoing HTTP client reads that trace ID from the context and injects it into the x-correlation-id header of any downstream requests, allowing our distributed logging system to stitch the entire journey together."
+
+
+4. Request Lifecycle with Middleware
+
+Incoming HTTP Request
+    |
+    v
+Middleware (Parsing)
+    |
+    v
+Middleware (Authentication)
+    |
+    v
+Middleware (Set Request Context)
+    |
+    v
+Route Handler (Controller)
+    |
+    v
+Response
+
+Parsing:
+Parses JSON body, attachments, req.body.
+
+Authentication:
+Verifies token and gets user.
+
+Set Request Context:
+Creates request context with user, requestId, etc.
+
+
+5. Implementing Request Context in Node.js (Express)
+
+Using AsyncLocalStorage
+
+const { AsyncLocalStorage } = require('async_hooks');
+const asyncLocalStorage = new AsyncLocalStorage();
+
+app.use((req, res, next) => {
+    const requestId = req.headers['x-request-id'] ||
+        crypto.randomUUID();
+
+    asyncLocalStorage.run(
+        { requestId, user: null },
+        () => {
+            next();
+        }
+    );
+});
+
+// Later in auth middleware
+app.use((req, res, next) => {
+    const user = verifyToken(req.headers.authorization);
+    const context = asyncLocalStorage.getStore();
+
+    if (context) {
+        context.user = user;
+    }
+
+    next();
+});
+
+// In any deep service/repository
+function getRequestContext() {
+    return asyncLocalStorage.getStore();
+}
+
+const ctx = getRequestContext();
+console.log(ctx.requestId, ctx.user);
+
+AsyncLocalStorage allows any deep internal service to retrieve the request context without passing it explicitly (prop drilling).
+
+
+6. Tracing Across Multiple Microservices
+
+To trace the request across multiple microservices, we need to propagate the same correlation ID in outgoing requests.
+
+Client
+    |
+    | x-correlation-id: abc-123
+    v
+Service A (API Gateway)
+    |
+    | x-correlation-id: abc-123
+    |
+    +----------------------+
+    |                      |
+    v                      v
+Service B                Service C
+(User Service)           (Order Service)
+
+The outgoing HTTP client reads the correlation ID from the context and injects it into the x-correlation-id header of downstream requests.
+
+const axios = require('axios');
+
+async function callUserService() {
+    const ctx = asyncLocalStorage.getStore();
+
+    return axios.get('http://user-service/api/user', {
+        headers: {
+            'x-correlation-id': ctx.requestId
+        }
+    });
+}
+
+All microservices use the same x-correlation-id for distributed logging, so our logging system can stitch the entire journey together.
+
+
+7. Key Points to Remember
+
+- Request context is the state or metadata associated with a single HTTP request while the backend processes it.
+- It includes information like the user, request ID, method, path, headers, etc.
+- It is not the same as the HTTP request itself.
+- In Node.js, we can implement it using middleware and AsyncLocalStorage.
+- AsyncLocalStorage avoids prop drilling and allows deep internal services to access the context.
+- To trace across microservices, propagate a correlation ID (e.g., x-correlation-id) in outgoing requests.
+- This helps in distributed logging and debugging.
+
+
