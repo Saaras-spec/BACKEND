@@ -1,0 +1,158 @@
+Pagination in Backend Engineering
+
+1. Why Pagination is Needed
+
+If you try to query a database with 10 million users and send it all to the frontend at once, your server will run out of RAM, the network will choke, and the user's browser will crash.
+
+Pagination is the process of splitting that massive dataset into smaller, manageable chunks (like 20 items per page).
+
+2. Two Main Approaches
+
+In enterprise backend engineering, there are two primary ways to do this:
+1. Offset Pagination (the easy way)
+2. Cursor Pagination (the scalable way)
+
+3. Offset Pagination (Limit/Offset)
+
+This is what most juniors learn first. It relies on two parameters:
+limit (how many items to return) and offset (how many items to skip).
+
+The Request
+
+GET /users?limit=10&offset=100
+(Give me page 11).
+
+The SQL
+
+SELECT * FROM users
+ORDER BY created_at DESC
+LIMIT 10 OFFSET 100;
+
+Example (limit = 10)
+
+Page    Offset    Items Returned
+1       0         1 - 10
+2       10        11 - 20
+3       20        21 - 30
+...     ...       ...
+11      100       101 - 110
+
+
+4. Cursor Pagination (Keyset Pagination)
+
+This is what product companies expect you to use for massive, real-time datasets (like an Instagram feed or Slack messages). Instead of saying "skip 100 items," you provide a unique bookmark (a Cursor) from the last item you saw.
+
+The Request
+
+GET /users?limit=10&cursor=user_id_101
+(Give me 10 items after User 101).
+
+The SQL
+
+SELECT * FROM users
+WHERE id > 101
+ORDER BY id ASC
+LIMIT 10;
+
+Example (limit = 10)
+
+Page    Cursor       Items Returned
+1       -            1 - 10
+2       user_id_10   11 - 20
+3       user_id_20   21 - 30
+...     ...          ...
+11      user_id_100  101 - 110
+
+
+5. The Fatal CS Flaw in Offset Pagination
+
+Offset pagination has terrible time complexity for deep pages. If you request OFFSET 1000000, the database does not magically jump to the one-millionth row. The database engine must physically read, scan, and count all 1,000,000 rows, and then throw them away just to give you the next 10. As users go deeper into the pages, the queries get exponentially slower.
+
+Database scans and discards
+1,000,000 rows
+
+1  2  3  4  5  6  7  ...  1,000,000  1,000,001  ...
+
+Then returns
+next 10 rows
+
+1,000,001  1,000,002  ...  1,000,010
+
+
+6. The Data Drift Problem (Offset Pagination)
+
+If a user is on Page 1 (items 1-10), and someone suddenly deletes item #5, everything shifts up. When the user clicks "Page 2" (offset 10), item #11 has shifted to the 10th spot. The user will completely skip seeing item #11.
+
+Before Deletion
+
+Page 1 (offset 0)
+1  2  3  4  5  6  7  8  9  10
+
+Page 2 (offset 10)
+11  12  13  14  15  16  17  18  19  20
+
+After Deletion (item #5 deleted)
+
+Page 1 (offset 0)
+1  2  3  4  6  7  8  9  10  11
+
+Page 2 (offset 10)
+12  13  14  15  16  17  18  19  20  21
+
+Item #11 is skipped and never seen by the user.
+
+
+7. Why Cursor Pagination is Better (SDE Reality)
+
+This is blazing fast (O(1) time complexity) regardless of whether you are on Page 1 or Page 100,000. Because the database uses an Index on the id column, it can jump directly to the memory address of id 101 in a fraction of a millisecond and grab the next 10.
+
+Furthermore, it prevents "Data Drift." If items are added or deleted before your cursor, it doesn't matter, because your anchor point is tied to a specific ID, not a fragile row count.
+
+
+8. Time Complexity Comparison
+
+Aspect: Time Complexity
+Offset Pagination: O(N) for deep pages (scans and skips N rows)
+Cursor Pagination: O(1) (uses index to jump)
+
+Aspect: Performance on large datasets
+Offset Pagination: Gets exponentially slower
+Cursor Pagination: Constant and fast
+
+Aspect: Data Drift
+Offset Pagination: Prone to missing or duplicate items
+Cursor Pagination: Not affected
+
+Aspect: Use Case
+Offset Pagination: Small datasets, simple use cases
+Cursor Pagination: Large, real-time datasets (social media feeds, etc.)
+
+
+9. Example: Cursor for Social Media Feed
+
+In a social media feed, we often use a composite cursor (timestamp + ID) to handle posts with the same timestamp.
+
+The Request
+
+GET /posts?limit=10&cursor=1704067200_523
+(Give me 10 posts after this timestamp and ID).
+
+The SQL
+
+SELECT * FROM posts
+WHERE (created_at, id) < (1704067200, 523)
+ORDER BY created_at DESC, id DESC
+LIMIT 10;
+
+The cursor can be a combination of the post's timestamp and ID to ensure uniqueness and correct ordering.
+
+
+10. Interview Question & Answer
+
+Q: How would you design the pagination for a high-traffic social media news feed?
+
+Your Answer:
+
+"I would exclusively use Cursor-based pagination. Social media feeds are massive and update in real-time. If we used standard Offset pagination, we would hit severe performance bottlenecks on deep scrolls because the database must scan and discard all preceding rows (O(N) penalty). More importantly, Offset pagination suffers from data drift; as new posts are constantly added to the top of the feed, the offsets shift, causing the user to see duplicate posts as they scroll down.
+
+By using a Cursor (like a composite hash of the post's timestamp and ID), the database can utilize B-Tree indexes to jump directly to the exact anchor point in O(1) time, guaranteeing consistent performance and preventing duplicate items in the UI's infinite scroll."
