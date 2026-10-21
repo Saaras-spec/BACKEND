@@ -1,0 +1,144 @@
+REST (REpresentational State Transfer)
+
+1. What is REST?
+
+REST stands for REpresentational State Transfer.
+It is the architectural style that powers 99% of the modern web.
+Roy Fielding invented it in 2000 to standardize how clients (browsers, mobile apps) communicate with servers.
+
+2. Breaking Down the Three Words
+
+1. Representational
+
+The Resources on web are represented in a specific format depends on different needs of different clients and context.
+The client interacts with a representation of a resource rather than the resource itself. Since the underlying data (the resource) is stored on the server, it is transmitted to the client in a specific, machine-readable format such as JSON, XML, or HTML.
+
+2. State
+
+This refers to the data at a specific moment in time.
+For example, if you ask for User 101, the "State" is their current username and balance at that exact millisecond.
+
+This is the actual data or condition of the resource on the server at a given moment (e.g., the current value in a database).
+The API transfers a representation of this resource state to the client, allowing the client to update its own application state.
+
+3. Transfer
+
+Moving that representation of the state over the network (usually using HTTP protocols) from the Server to the Client, or vice versa.
+
+
+3. REST API
+
+REST API stands for Representational State Transfer Application Programming Interface.
+It is an architectural style for designing networked applications, first defined by Roy Fielding in 2000, that relies on a stateless, client-server protocol, typically HTTP.
+
+
+4. Key Characteristics of REST API
+
+1. Resource-Based: Data and functionality are treated as resources accessed via unique URIs.
+
+2. Standard Methods: Uses standard HTTP verbs (GET, POST, PUT, DELETE) to perform Create, Read, Update, and Delete (CRUD) operations.
+
+3. Data Formats: Primarily uses lightweight, language-agnostic formats like JSON or XML for data exchange.
+
+4. Statelessness: Each request from the client to the server must contain all the information necessary to understand and process the request, with no server-side session data stored between requests.
+
+
+5. How REST Works (Example Flow)
+
+HTTP Request
+
+Client (Browser / Mobile App) → Server (REST API)
+
+GET /api/users/101
+Accept: application/json
+
+HTTP Response
+
+200 OK
+Content-Type: application/json
+
+{
+    "id": 101,
+    "username": "sanjana",
+    "balance": 500
+}
+
+
+6. Common HTTP Methods (CRUD)
+
+HTTP Method: GET
+Operation: Read
+Description: Retrieve a resource
+Example URI: GET /api/users/101
+
+HTTP Method: POST
+Operation: Create
+Description: Create a new resource
+Example URI: POST /api/users
+
+HTTP Method: PUT
+Operation: Update
+Description: Update an existing resource (full update)
+Example URI: PUT /api/users/101
+
+HTTP Method: DELETE
+Operation: Delete
+Description: Delete a resource
+Example URI: DELETE /api/users/101
+
+
+7. Data Formats (Representations)
+
+REST is not limited to a single format. It can return any representational format, including JSON, XML, HTML, or CSV.
+
+JSON
+{ "id": 101 }
+
+XML
+<user>
+    <id>101</id>
+</user>
+
+HTML
+<h1>User 101</h1>
+
+CSV
+id,username
+101,sanjana
+
+
+8. Why is REST Considered "Stateless"?
+
+REST is stateless because the server retains no memory of the client's past requests; every single request must contain all the information (like an authentication token) necessary for the server to understand and authorize it.
+
+This is critical for horizontal scaling. If an API is stateless, we can spin up 50 instances of our backend behind a Load Balancer.
+If a user's first request hits Server A, and their second request hits Server B, Server B can process it perfectly without needing to sync memory with Server A.
+
+Client (includes token in every request)
+    |
+    | Request 1 (with token)
+    | Request 2 (with token)
+    v
+Load Balancer
+    |
+    |----------> Server A
+    |
+    |----------> Server B
+
+
+9. Interview Questions & Answers
+
+Q1. Why is REST considered "Stateless", and why is that important for system design?
+
+The SDE Answer:
+
+"REST is stateless because the server retains no memory of the client's past requests; every single request must contain all the information (like an authentication token) necessary for the server to understand and authorize it. This is critical for horizontal scaling. If an API is stateless, we can spin up 50 instances of our backend behind a Load Balancer.
+If a user's first request hits Server A, and their second request hits Server B, Server B can process it perfectly without needing to sync memory with Server A."
+
+
+Q2. Does a REST API have to return JSON? How does the client tell the server what format it expects?
+
+Your Answer:
+
+"No, REST is protocol and format agnostic, meaning it can return any representational format, including JSON, XML, HTML, or CSV. The format is determined through a mechanism called Content Negotiation.
+The client specifies its desired format using the Accept HTTP header (e.g., Accept: application/json). The server reads this header, formats the Data Transfer Object accordingly, and returns the response with a matching Content-Type header so the client knows how to parse the incoming byte stream."
